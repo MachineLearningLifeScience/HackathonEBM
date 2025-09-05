@@ -1,0 +1,34 @@
+log_dir: logs/
+
+train:
+  batch_size: 32
+  epochs: 1000
+  lr: 0.001
+
+model:
+  input_dim: [1,28,28]
+  latent_dim: 64
+  encoder_hidden: 128
+  decoder_hidden: 128
+  K: 5
+  likelihood: 'gaussian'
+
+data:
+  name: 'mnar_mnist'
+  params:
+    missing_rate: 0.7
+    threshold: 2
+    drop_digits: [1,2,3,4,5]
+
+callbacks:
+  image_reconstruction:
+    num_images: 8
+    every_n_epochs: 1
+  
+  image_samples: 
+    num_samples: 16
+    every_n_epochs: 1
+
+
+
+

@@ -1,0 +1,28 @@
+_target_: src.models.EBM
+_recursive_: false  
+
+model:  
+  lambda_reg: 1e-1
+  buffer_size: 8192
+
+  energy_net:
+    _target_: src.layers.ConvEncoder
+    input_channels: ${data.dim}
+    input_shape: ${data.shape}
+    latent_dim: 1
+    hidden_channels: [32, 64, 128, 128]
+    kernel_sizes: [5, 3, 3, 3]
+    strides: [2, 2, 2, 2]
+    paddings: [4, 1, 1, 1]
+    batch_norm: False
+    activation: "swish"
+    probabilistic: False
+
+  sampler:
+    _target_: src.samplers.SGLD
+    input_dim: ${data.dim}
+    input_shape: ${data.shape}  
+    sample_size: ${train.batch_size}
+    steps: 60
+    step_size: 4
+    noise_std: 0.005

@@ -1,0 +1,17 @@
+batch_size: 128
+epochs: 30
+accelerator: "cuda"
+devices: 1
+precision:  16
+strategy: "auto"
+gradient_clip_val: 0.1
+log_dir: "./"
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1e-4
+  weight_decay: 0.
+  betas: [0., 0.999]
+scheduler:
+  _target_: torch.optim.lr_scheduler.StepLR
+  step_size: 1
+  gamma: 0.97

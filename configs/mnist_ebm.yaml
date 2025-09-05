@@ -1,0 +1,7 @@
+defaults:
+  - train: default
+  - model: ebm
+  - data: mnist
+  - callbacks: image_ebm
+  
+

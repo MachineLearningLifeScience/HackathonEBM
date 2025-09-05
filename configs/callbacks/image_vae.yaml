@@ -1,0 +1,15 @@
+image_samples: 
+  _target_: src.callbacks.ImageSamples
+  num_samples: 64
+  steps: 256
+  every_n_epochs: 1
+
+image_reconstruction:
+  _target_: src.callbacks.ImageReconstruction
+  num_images: 8
+  every_n_epochs: 1
+  split: 'val'
+
+lr_monitor:
+  _target_: pytorch_lightning.callbacks.LearningRateMonitor
+  logging_interval: "epoch"
