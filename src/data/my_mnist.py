@@ -8,11 +8,21 @@ class MyMNIST(MNIST):
     - Missingness depends on label, pixel intensity, and spatial location.
     - For digits 3 and 8, central high-intensity pixels are more likely to be missing.
     """
-    def __init__(self, *args, missing_rate=0., threshold=255, center_box=10, drop_digits=None, **kwargs):
+    def __init__(self, *args, missing_rate=0., threshold=255, center_box=10, digits_box = [], drop_digits=None, dataset_fraction=1., **kwargs):
+        """ 
+        Args:
+            missing_rate: Base probability of a pixel being missing if its intensity > threshold.
+            threshold: Pixel intensity threshold for missingness.
+            center_box: Size of the central square region where missingness is more likely for digits
+            digits_box: List of digit labels (e.g., [3,8]) that have special missingness in the center.
+            drop_digits: List of digit labels to drop from the dataset (e.g., [0,1,2])
+        """
         super().__init__(*args, **kwargs)
         self.missing_rate = missing_rate
         self.intensity_threshold = threshold
         self.center_box = center_box
+        self.digits_box = digits_box 
+        self.dataset_fraction = dataset_fraction
 
         # Drop specified digits
         if drop_digits is not None:
@@ -41,7 +51,7 @@ class MyMNIST(MNIST):
             prob_mask = np.random.rand(*img_np.shape)
 
             # For digits 3 and 8, central high-intensity pixels are much more likely to be missing
-            if label in [3, 8]:
+            if label in digits_box:
                 # Increase missing rate in the center region for high-intensity pixels
                 mask[center_mask & high_intensity & (prob_mask < self.missing_rate * 1.5)] = 0.0
                 # Also, some missingness outside center
@@ -53,6 +63,9 @@ class MyMNIST(MNIST):
             self.masks.append(mask)
         self.masks = np.stack(self.masks)
 
+    def __len__(self):
+        return int(len(self.data) * self.dataset_fraction)
+    
     def __getitem__(self, index):
         img, label = super().__getitem__(index)
         img_np = np.array(img, dtype=np.float32)
@@ -74,5 +87,3 @@ class MyMNIST(MNIST):
 
         return img_tensor, mask
 
-# Example usage:
-# dataset = ChallengingMNAR_MNIST(root='./data', train=True, download=True, missing_rate=0.4, intensity_threshold=70, center_box=12)

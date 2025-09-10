@@ -1,0 +1,10 @@
+
+defaults:
+  - train: default
+  - model: ebm/mnist_miwae
+  - data: mnist
+  - callbacks: image_ebm_debiasing
+
+data:
+  dataset:
+    dataset_fraction: 0.1

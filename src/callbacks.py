@@ -12,6 +12,7 @@ class ImageReconstruction(pl.Callback):
         self.dataloader = dataloader
         self.num_images = num_images
         self.every_n_epochs = every_n_epochs
+        self.kwargs = kwargs
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if (trainer.current_epoch + 1) % self.every_n_epochs != 0:
@@ -24,8 +25,8 @@ class ImageReconstruction(pl.Callback):
             else:
                 images = batch[:self.num_images]
             images = images.to(pl_module.device)
-            mask = images.to(pl_module.device)
-            reconstructions = pl_module.reconstruct(images, mask)
+            mask = mask.to(pl_module.device)
+            reconstructions = pl_module.reconstruct(images, mask, **self.kwargs)
         
         # Move to [0,1]
         images = (images + 1) / 2
@@ -59,6 +60,19 @@ class ImageSamples(pl.Callback):
 
         with torch.no_grad():
             samples = pl_module.sample(self.num_samples, **self.kwargs)
+        
+        if type(samples) is tuple:
+            samples, init = samples
+
+            # Move to [0,1]
+            init = (init + 1) / 2
+            init = torch.clamp(init, min=0, max=1)
+
+            grid = vutils.make_grid(init, nrow=int(np.sqrt(self.num_samples)), padding=2)
+            model_name = pl_module.__class__.__name__
+            image = wandb.Image(grid, caption=f"Epoch {trainer.current_epoch+1} ({model_name} Init Samples)")
+            if trainer.logger is not None and hasattr(trainer.logger, "experiment"):
+                trainer.logger.experiment.log({"Init samples": image, "epoch": trainer.current_epoch})
 
         # Move to [0,1]
         samples = (samples + 1) / 2
@@ -68,7 +82,7 @@ class ImageSamples(pl.Callback):
         model_name = pl_module.__class__.__name__
         image = wandb.Image(grid, caption=f"Epoch {trainer.current_epoch+1} ({model_name} Samples)")
         if trainer.logger is not None and hasattr(trainer.logger, "experiment"):
-            trainer.logger.experiment.log({f"{model_name} Samples": image, "epoch": trainer.current_epoch})
+            trainer.logger.experiment.log({"Samples": image, "epoch": trainer.current_epoch})
 
 
 class BufferSamples(pl.Callback):
@@ -79,12 +93,20 @@ class BufferSamples(pl.Callback):
         self.every_n_epochs = every_n_epochs # Only save those images every N epochs (otherwise tensorboard gets quite large)
         
     def on_validation_epoch_end(self, trainer, pl_module):
-        if trainer.current_epoch % self.every_n_epochs == 0:
-            exmp_imgs = torch.cat(random.choices(pl_module.buffer, k=self.num_samples), dim=0)
-            grid = vutils.make_grid(exmp_imgs, nrow=int(np.sqrt(self.num_samples)), padding=2)
-            model_name = pl_module.__class__.__name__
-            trainer.logger.experiment.log({f"{model_name} buffer samples": grid, "epoch": trainer.current_epoch})
+        if (trainer.current_epoch + 1) % self.every_n_epochs != 0:
+            return
+        imgs = torch.stack(random.choices(pl_module.buffer, k=self.num_samples), dim=0)
 
+        # Move to [0,1]
+        imgs = (imgs + 1) / 2
+        imgs = torch.clamp(imgs, min=0, max=1)
+
+        grid = vutils.make_grid(imgs, nrow=int(np.sqrt(self.num_samples)), padding=2)
+        model_name = pl_module.__class__.__name__
+        image = wandb.Image(grid, caption=f"Epoch {trainer.current_epoch+1} ({model_name} Bufer Samples)")
+
+        if trainer.logger is not None and hasattr(trainer.logger, "experiment"):
+            trainer.logger.experiment.log({"Buffer Samples": image, "epoch": trainer.current_epoch})
 
 
 def get_callbacks(config, loaders):

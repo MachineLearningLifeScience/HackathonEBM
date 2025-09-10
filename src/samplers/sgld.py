@@ -32,7 +32,7 @@ class SGLD(torch.nn.Module):
         self.log_prob = log_prob  # Placeholder for the log probability function
 
 
-    def __call__(self, num_samples=None, init=None, steps=None, step_size=None, return_img_per_step=False):
+    def __call__(self, num_samples=None, init=None, steps=None, step_size=None, return_img_per_step=False, *args, **kwargs):
         """
         Function for sampling images.
         Inputs:

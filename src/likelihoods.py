@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.nn.modules.loss import BCELoss, BCEWithLogitsLoss
 import torch.nn.functional as F
 import numpy as np
+from src.utils import reparam
 
 
 class Likelihood(nn.Module):
@@ -47,6 +48,10 @@ class Likelihood(nn.Module):
         Computes the log probability of a given masked data under parameters theta
         """
         mc_mode = False
+
+        if mask is None:
+            mask = torch.ones_like(data)[:, :1, ...]  # (bs, 1, h, w)   
+        
         if len(logits.shape) == 5:
             mc_mode = True
             # MC samples
@@ -60,10 +65,6 @@ class Likelihood(nn.Module):
             data = data.reshape(bs*mc_samples, feats, h, w)
             mask = mask.reshape(bs*mc_samples, -1, h, w)
 
-
-        if mask is None:
-            mask = torch.ones_like(data)
-        
         log_prob = self.log_prob(data, logits, params=params, *args, **kwargs) * mask[..., 0, :,:] # mask is (bs, ..., feats, h, w)
         
         if reduce:
@@ -86,10 +87,9 @@ class BernoulliLikelihood(Likelihood):
 
     # ============= Bernoulli ============= #
     
-    def __init__(self, binary=True):
+    def __init__(self):
         # Bernoulli does not require any param
         super(BernoulliLikelihood, self).__init__(type='bernoulli')
-        self.binary = binary
 
     def log_prob(self, data, logits, params=False, **kwargs):
 
@@ -103,20 +103,20 @@ class BernoulliLikelihood(Likelihood):
         return logp
 
     def logits_to_params(self, logits, **kwargs):
-        return torch.sigmoid(logits)
+        params = torch.sigmoid(logits)
+        return params
 
     def logits_to_data(self, logits, sample=True, **kwargs):
         probs = self.logits_to_params(logits)
-        return self.params_to_data(probs,sample=sample)
+        data = self.params_to_data(probs, sample=sample)
+        return data
     
     def params_to_data(self, params, sample=True, **kwargs):
-        if self.binary:
-            if sample:
-                samples = torch.bernoulli(params)
-            else:
-                samples = torch.round(params)
+        if sample:
+            samples = torch.bernoulli(params)
         else:
-            samples = params
+            samples = torch.round(params)
+        # Scale back to [-1, 1]
         samples = samples * 2 - 1
         return samples
         
@@ -126,26 +126,26 @@ class GaussianLikelihood(Likelihood):
     """
         Gaussian Distribution 
     """
-    def __init__(self, var=None):
+    def __init__(self, min_logvar=None, learn_var=False):
         super(GaussianLikelihood, self).__init__(type='gaussian')
-        if var is not None:
-            self.register_buffer('logvar', torch.tensor(np.log(var)))
+        self.min_logvar = min_logvar
+        self.learn_var = learn_var
 
     def logits_to_params(self, logits, temperature=1., *args, **kwargs):
-        if hasattr(self, 'logvar'):
-            mean = logits
-            logvar = self.logvar * torch.ones_like(mean)
-        else:
-            mean, logvar = torch.chunk(logits, 2, dim=-3)
+        if self.learn_var:
+            mean, logvar = logits.chunk(2, dim=1)
             # Add minimum variance
-            logvar = torch.clamp(logvar, min=self.logvar)
+            logvar = torch.clamp(logvar, min=self.min_logvar)
+        else:
+            mean = logits
+            logvar = torch.ones_like(mean) * self.min_logvar
         logvar = logvar + np.log(temperature)
         return mean, logvar
     
     def logits_to_data(self, logits, temperature=1., sample=True, *args, **kwargs):
         mean, logvar = self.logits_to_params(logits, temperature=temperature)
         if sample:
-            sample = self.reparam(mean, logvar)
+            sample = reparam(mean, logvar)
         else:
             sample = mean
         return sample
@@ -153,5 +153,5 @@ class GaussianLikelihood(Likelihood):
     def log_prob(self, data, logits, *args, **kwargs):
         mean, logvar = self.logits_to_params(logits)
         logp = -0.5 * (np.log(2 * np.pi) + logvar + (data - mean) ** 2 / torch.exp(logvar))
-        return logp.sum(1)
+        return logp.sum(-3)
     

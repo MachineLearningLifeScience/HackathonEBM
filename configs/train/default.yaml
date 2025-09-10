@@ -1,10 +1,10 @@
 batch_size: 128
-epochs: 30
+epochs: 300
 accelerator: "cuda"
 devices: 1
 precision:  16
 strategy: "auto"
-gradient_clip_val: 0.1
+gradient_clip_val: 1.
 log_dir: "./"
 optimizer:
   _target_: torch.optim.Adam

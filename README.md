@@ -1,3 +1,0 @@
-# Energy-based debiasing
-
-[todo]

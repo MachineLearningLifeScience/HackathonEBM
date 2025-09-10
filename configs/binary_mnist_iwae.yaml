@@ -1,0 +1,11 @@
+# Trains an IWAE model (fully observed binarized mnist)
+
+defaults:
+  - train: default
+  - model: vae/binary_mnist
+  - data: binary_mnist
+  - callbacks: image_vae
+
+# Change model target to MIWAE
+model:
+  _target_: src.models.MIWAE
