@@ -1,8 +1,9 @@
-import torch
-from omegaconf import OmegaConf
-import os
 import glob
+import os
+
+import torch
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
 from wandb import config
 
 # This allows to reverse a list in the config
@@ -31,14 +32,16 @@ def reparam(mu, logvar, n_samples=1, unsqueeze=False):
     eps = torch.randn_like(std)
     return mu + eps * std
 
+
 def freeze(model):
     for module in model.modules():
-        module.eval()  
+        module.eval()
         for param in module.parameters():
-            param.grad = None 
-            param.requires_grad = False 
+            param.grad = None
+            param.requires_grad = False
 
-def load_model(ckpt_path, map_location='cpu'):
+
+def load_model(ckpt_path, map_location="cpu"):
     """
     Load a model from a checkpoint.
     Args:
@@ -50,7 +53,9 @@ def load_model(ckpt_path, map_location='cpu'):
     """
 
     # Config is in parent parent folder
-    config_path = os.path.join(os.path.dirname(os.path.dirname(ckpt_path)), "config.yaml")
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(ckpt_path)), "config.yaml"
+    )
     config = OmegaConf.load(config_path)
 
     # Model
@@ -72,6 +77,3 @@ def get_wandb_run_id(log_dir):
     if "-" in latest_run:
         return latest_run.split("-")[-1]
     return None
-
-
-

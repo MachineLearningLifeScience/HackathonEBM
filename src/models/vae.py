@@ -1,9 +1,11 @@
-import torch
 import pytorch_lightning as pl
+import torch
 import torch.distributions as td
 from hydra.utils import instantiate
-from src.utils import reparam
+
 from src.models.base import BaseModel
+from src.utils import reparam
+
 
 class VAE(BaseModel):
     """
