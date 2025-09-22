@@ -1,0 +1,5 @@
+_target_: src.models.SimpleMNISTConvClassifier
+pretrained: True
+weights_path: "src/pretrained_models/mnist_classifier.pth"
+num_classes: 10
+
