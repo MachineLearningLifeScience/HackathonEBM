@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 
 from src.data.utils import get_data_loaders
-from src.callbacks import get_callbacks
+from src.callbacks.callbacks import get_callbacks
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 import os

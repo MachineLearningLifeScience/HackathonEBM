@@ -1,20 +1,19 @@
-import torch
+import argparse
+import os
+from datetime import datetime
 
+import hydra
 import omegaconf
 import pytorch_lightning as pl
+import torch
+from hydra.core.hydra_config import HydraConfig
+from hydra.utils import instantiate
 from pytorch_lightning import Trainer
-
-from src.data.utils import get_data_loaders
-from src.callbacks import get_callbacks
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-import os
-import hydra
-from hydra.utils import instantiate
-from hydra.core.hydra_config import HydraConfig
-from datetime import datetime
+from src.callbacks.callbacks import get_callbacks
+from src.data.utils import get_data_loaders
 from src.utils import load_model
-import argparse
 
 # Create parser only for --exp_config
 parser = argparse.ArgumentParser()
@@ -34,12 +33,12 @@ def main():
     # Load model from checkpoint
     model, config = load_model(ckpt_path=ckpt_path)
     if torch.cuda.is_available():
-        model.cuda()    
-    
+        model.cuda()
+
     # Data loaders
-    loaders = get_data_loaders(config)  #[train_loader, val_loader, ?test_loader]
-    
-    log_dir =  os.path.dirname(os.path.dirname(ckpt_path))
+    loaders = get_data_loaders(config)  # [train_loader, val_loader, ?test_loader]
+
+    log_dir = os.path.dirname(os.path.dirname(ckpt_path))
 
     experiment = instantiate(exp_config)
     experiment.setup(log_dir=log_dir)
@@ -49,7 +48,7 @@ def main():
         loader = loaders[0]  # Assuming the first loader is training
     elif split == "val":
         # If a test loader is provided, run the experiment on it
-        loader = loaders[1] 
+        loader = loaders[1]
     elif split == "test":
         loader = loaders[2]
 
