@@ -12,9 +12,21 @@ class VAE(BaseModel):
     Variational Autoencoder (VAE) base class.
     This class implements the basic structure of a VAE, including encoding, decoding,
     and the evidence lower bound (ELBO) computation.
-    It is intended to be subclassed for specific VAE implementations.   
+    It is intended to be subclassed for specific VAE implementations.
     """
-    def __init__(self, latent_dim, encoder, decoder, likelihood, K=1, cfg=None, ckpt_path=None, *args, **kwargs):
+
+    def __init__(
+        self,
+        latent_dim,
+        encoder,
+        decoder,
+        likelihood,
+        K=1,
+        cfg=None,
+        ckpt_path=None,
+        *args,
+        **kwargs
+    ):
         """
         Args:
             encoder: A neural network that encodes input x to a latent representation.
@@ -23,7 +35,7 @@ class VAE(BaseModel):
             K: Number of Monte Carlo samples for the ELBO estimation.
             cfg: Configuration DictConfig
         """
-        
+
         super().__init__(cfg)
 
         self.latent_dim = latent_dim
@@ -34,29 +46,59 @@ class VAE(BaseModel):
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
-        
+
     def encode(self, x):
         mean, logvar = self.encoder(x)
         return mean, logvar
 
     def decode(self, z):
         # z: [batch, K, latent_dim]
-        batch, K, latent_dim = z.size()
-        input_size = self.hparams.data.shape
-
-        z_flat = z.view(-1, latent_dim)
-        x_recon = self.decoder(z_flat)
+        if len(z.size()) == 2:
+            batch, latent_dim = z.size()
+            input_size = self.hparams.data.shape
+            z_flat = z
+            x_recon = self.decoder(z_flat)
+            return x_recon.view(batch, -1, *input_size)
+        else:
+            batch, K, latent_dim = z.size()
+            input_size = self.hparams.data.shape
+            z_flat = z.view(-1, latent_dim)
+            x_recon = self.decoder(z_flat)
         return x_recon.view(batch, K, -1, *input_size)
 
     def forward(self, x, mask, return_losses=False):
         return self.elbo(x, mask, return_losses=return_losses)
+
+    def sample_prior(self, num_samples, device=None):
+        """
+        Sample from the prior distribution p(z).
+        Args:
+            num_samples: Number of samples to draw.
+            device: Device to perform the sampling on.
+        Returns:
+            z: Samples from the prior distribution.
+        """
+        device = device or next(self.parameters()).device
+        z = torch.randn(num_samples, self.latent_dim, device=device)
+        return z
+
+    def log_prob_prior(self, z):
+        """
+        Compute the log probability of samples under the prior distribution p(z).
+        Args:
+            z: Samples to compute the log probability for.
+        Returns:
+            log_prob: Log probabilities of the samples under the prior.
+        """
+        p = td.Normal(torch.zeros_like(z), torch.ones_like(z))
+        return p.log_prob(z).sum(-1)  # Sum over latent dimensions
 
     def elbo(self, x, mask, K=None, return_losses=False):
         """
         x: [batch, input_dim]
         mask: [batch, input_dim] binary mask (1=observed, 0=missing)
         """
-        if K==None:
+        if K == None:
             K = self.K
         mean, logvar = self.encode(x)
         z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
@@ -66,21 +108,25 @@ class VAE(BaseModel):
 
         # Compute log p(x_obs|z)
         # Only observed values contribute to likelihood
-        log_px = self.likelihood.log_prob_mask(x, x_recon, mask=mask, mode='sum')  # [batch, K]
+        log_px = self.likelihood.log_prob_mask(
+            x, x_recon, mask=mask, mode="sum"
+        )  # [batch, K]
 
         # Compute KL(q(z|x_obs) || p(z))
         q = td.Normal(mean, torch.exp(0.5 * logvar))
-        p = td.Normal(torch.zeros_like(mean), torch.ones_like(mean))  # Standard normal prior
-        kl = td.kl_divergence(q, p).sum(-1,keepdim=True)  # [batch, K]
+        p = td.Normal(
+            torch.zeros_like(mean), torch.ones_like(mean)
+        )  # Standard normal prior
+        kl = td.kl_divergence(q, p).sum(-1, keepdim=True)  # [batch, K]
 
         # ELBO
         elbo = log_px - kl  # [batch, K]
-        loss = -elbo 
+        loss = -elbo
         if return_losses:
             loss_dict = {
-                'log_px': log_px.mean(),
-                'kl': kl.mean(),
-                'elbo': elbo.mean(),
+                "log_px": log_px.mean(),
+                "kl": kl.mean(),
+                "elbo": elbo.mean(),
             }
             return loss.mean(dim=1), loss_dict
 
@@ -88,10 +134,10 @@ class VAE(BaseModel):
 
     def log_prob(self, x, mask=None, K=None):
         return self.elbo(x, mask, K)
-    
+
     def reconstruct(self, x, mask=None, K=None, *args, **kwargs):
         """
-        x: [batch, input_dim] 
+        x: [batch, input_dim]
         mask: [batch, input_dim] binary mask (1=observed, 0=missing)
         """
         if K is None:
@@ -114,7 +160,7 @@ class VAE(BaseModel):
         z = torch.randn(num_samples, self.latent_dim, device=device)
         x_samples = self.decoder(z)
         x_samples = self.likelihood.logits_to_data(x_samples)
-                        
+
         return x_samples
 
     def impute(self, x, mask, K=None):
@@ -126,4 +172,3 @@ class VAE(BaseModel):
             x_out = x.clone()
             x_out[mask == 0] = x_recon[mask == 0]
         return x_out
-    
