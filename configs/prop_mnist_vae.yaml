@@ -1,0 +1,10 @@
+
+defaults:
+  - train: default
+  - model: vae/mnist
+  - data: prop_mnist
+  - callbacks: image_vae_prop_debiasing
+
+data:
+  dataset:
+    dataset_fraction: 0.9

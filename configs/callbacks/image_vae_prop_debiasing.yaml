@@ -1,0 +1,24 @@
+image_samples: 
+  _target_: src.callbacks.ImageSamples
+  num_samples: 64
+  every_n_epochs: 10
+
+image_reconstruction:
+  _target_: src.callbacks.ImageReconstruction
+  num_images: 8
+  K: 100
+  every_n_epochs: 10
+  split: 'val'
+
+classify_samples:
+  _target_: src.callbacks.ClassifySamples
+  classifier:
+    _target_: src.models.SimpleMNISTConvClassifier
+    weights_path: "src/pretrained_models/mnist_classifier.pth"
+    num_classes: 10
+  num_samples: 256
+  every_n_epochs: 10
+
+lr_monitor:
+  _target_: pytorch_lightning.callbacks.LearningRateMonitor
+  logging_interval: "epoch"

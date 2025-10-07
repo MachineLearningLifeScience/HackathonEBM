@@ -1,0 +1,7 @@
+# Trains an VAE model (fully observed binarized mnist)
+
+defaults:
+  - train: default
+  - model: vae/binary_mnist
+  - data: binary_mnist
+  - callbacks: image_vae

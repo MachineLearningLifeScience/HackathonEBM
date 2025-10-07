@@ -1,207 +1,101 @@
-# HackathonEBM
+# Debiasing with Energy-Based Models (EBMs)
 
-  
+Train an EBM on your dataset using the provided configurations.
 
-In MIWAE_Pytorch_exercises_demo_ProbAI, a base model is implemented and trained on MNAR Data. We will modify this model with an Energy-Based Model (EBM) to handle the MNAR data more effectively.
+## 📦 Environment
 
-  
-  # Objective
+Conda environment (see `environment.yml`):
 
-## 1) Using a VAE in data space
+```bash
+conda env create -f environment.yml
+conda activate ebm
 
-### 1.1) Train a VAE on MNAR data
-
-The first objective is to train a Variational Autoencoder (VAE) on MNAR data, and then extend it with an EBM.  
-
-VAE:
-
-```math
-p_{\phi}(x) = \int p_{\phi}(x|z) \, p(z) \, dz
+# or minimal pip (no CUDA pinning)
+pip install torch torchvision lightning hydra-core einops matplotlib wandb
 ```
 
-where:
-
-```math
-p_{\phi}(x|z) = \mathcal{N}(x; \mu_{\theta}(z), \sigma_{\theta}(z))
-```
-
-```math
-p(z) = \mathcal{N}(z; 0, I)
-```
-
-with $\mu_{\theta}(z)$ and $\sigma_{\theta}(z)$ parameterized by neural networks.
-
-As usual in the VAE setting, we use the **reparameterization trick** to sample from $p_{\phi}(x|z)$:
-
-```math
-x = \mu_{\theta}(z) + \sigma_{\theta}(z) \odot \epsilon, \quad \epsilon \sim \mathcal{N}(0, I)
-```
-
-We then obtain a lower bound on the likelihood (ELBO):
-
-```math
-L_{VAE} = \mathbb{E}_{p_{\phi}(x|z)} \left[ \log p_{\phi}(x|z) \right] 
-- D_{KL}\!\left(q_{\phi}(z|x) \,\|\, p(z)\right)
-```
-
-where $q_{\phi}(z|x)$ is the encoder of the VAE, also parameterized with a neural network.
-
-
-
-### 1.2) Tilting the VAE with an EBM
-
-We extend the VAE by tilting its distribution with an EBM:
-
-```math
-p_{\theta}(x) = \frac{1}{Z_{\theta}} e^{-E_{\theta}(x)} p_{\phi}(x)
-```
-
-where $E_{\theta}(x)$ is the energy function (a neural network), and $Z_{\theta}$ is the partition function ensuring normalization.
-
-The training objective becomes:
-
-```math
-L_{EBM} = \frac{1}{n}\sum_{i=1}^n \left[-E_{\theta}(x_i) + \log p_{\phi}(x_i)\right] 
-+ \log \mathbb{E}_{p_{\phi}(\tilde{x})}\!\left[ e^{-E_{\theta}(\tilde{x})} \right]
-```
-
-Using Jensen's inequality, we obtain a lower bound:
-
-```math
-L_{EBM} \geq \frac{1}{n}\sum_{i=1}^n \left[-E_{\theta}(x_i) + \log p_{\phi}(x_i)\right] 
-+ \mathbb{E}_{p_{\phi}(\tilde{x})} \left[ -E_{\theta}(\tilde{x}) \right]
-```
-
-The gradient with respect to $\theta$ is:
-
-```math
-\nabla_{\theta} L_{EBM} = \frac{1}{n}\sum_{i=1}^n \left( -\nabla_{\theta} E_{\theta}(x_i)\right) 
-+ \mathbb{E}_{p_{\phi}(\tilde{x})}\!\left[ -\nabla_{\theta} E_{\theta}(\tilde{x}) \right]
-```
-
-
-
-### 1.3) Sampling with Importance Sampling
-
-We can sample from the model using importance sampling, with the VAE as a proposal distribution $p_{\phi}(x)$:
-
-```math
-\tilde{w}_i = e^{-E_{\theta}(x_i)}, \quad x_i \sim p_{\phi}(x)
-```
-
-Since $Z_{\theta}$ is unknown, we use self-normalized importance sampling (SNIS):
-
-```math
-w_i = \frac{\tilde{w}_i}{\sum_{j=1}^n \tilde{w}_j}
-```
-
-We then resample $\tilde{x}_i$ according to $w_i$.
-
-
-
-### 1.4) Sampling with MCMC
-
-Alternatively, we can sample using an MCMC chain guided by the full log-likelihood gradient:
-
-```math
-\nabla_{x} \log p_{\theta}(x) = -\nabla_{x} E_{\theta}(x) + \nabla_{x} \log p_{\phi}(x)
-```
-
-where $p_{\phi}(x)$ can be approximated via the ELBO of the VAE.
-
-The MCMC update rule is:
-
-```math
-x_{t+1} = x_t - \eta \left( -\nabla_{x} E_{\theta}(x_t) + \nabla_{x} \log p_{\phi}(x_t) \right)
-```
-
-where $\eta$ is the step size.
+> CUDA: the default `environment.yml` pulls `pytorch`/`nvidia` channels. Adjust versions if your GPU/driver requires it.
 
 ---
 
-## 2) Using a VAE in latent space
+## 🗂️ Repository layout
 
-### 2.1) Train the VAE
-
-Same as before.
-
-### 2.2) Tilt the prior with an EBM
-
-We can tilt the latent prior instead of the data distribution:
-
-```math
-p_{\theta}(x) = \int_{z} \frac{1}{Z_{\theta}} e^{-E_{\theta}(z)} p_{\phi}(x|z) p(z) \, dz
 ```
-
-The tilted prior becomes:
-
-```math
-p_{\theta}(z) = \frac{e^{-E_{\theta}(z)} p(z)}{Z_{\theta}}
-```
-
-Training objective:
-
-```math
-\mathcal{L}_{EBM} 
-= \log \mathbb{E}_{q_{\psi}(z|x)}\!\left[\frac{1}{Z_{\theta}}  
-\frac{e^{-E_{\theta}(z)} p_{\phi}(x|z) p(z)}{q_{\psi}(z|x)}\right]
-```
-
-Applying Jensen’s inequality:
-
-```math
-\mathcal{L}_{EBM} \leq 
-\mathbb{E}_{q_{\psi}(z|x)}\!\left[-E_{\theta}(z) + \log p(z) - \log q_{\psi}(z|x) + \log p_{\phi}(x|z)\right] 
-- \log Z_{\theta}
-```
-
-Partition function:
-
-```math
-\log Z_{\theta} = \log \mathbb{E}_{p(z)}\!\left[ e^{-E_{\theta}(z)} \right]
-```
-
-Final form:
-
-```math
-\mathcal{L}_{EBM} =  
-\mathbb{E}_{q_{\psi}(z|x)}\!\left[-E_{\theta}(z)\right] 
-- \mathbb{E}_{p(\tilde{z})}\!\left[-E_{\theta}(\tilde{z})\right] + \ldots
+HackathonEBM 2/
+├─ configs/                 # Hydra configs (data/model/train and full recipes)
+│  ├─ data/                 # e.g. mnist.yaml, binary_mnist.yaml, prop_*.yaml
+│  ├─ model/                # ebm/, vae/, classifier/ (model blueprints)
+│  ├─ train/                # trainer, optimizer, scheduler defaults
+│  ├─ mnist_ebm.yaml        # ready-to-run full configs
+│  ├─ binary_mnist_iwae.yaml
+│  └─ ...                   # other experiment recipes
+├─ experiments/             # Experiment runners (e.g., sampling utilities)
+├─ notebooks/               # ebm.ipynb, miwae.ipynb, debiasing explorations
+├─ src/
+│  ├─ data/                 # datasets & loaders (MyMNIST, transforms, utils)
+│  ├─ layers/               # ConvEncoder/Decoder, MLPs, etc.
+│  ├─ models/               # EBM, VAE, IWAE/MIWAE, base Lightning module
+│  ├─ samplers/             # SGLD + utilities
+│  ├─ callbacks/            # replay buffer, sampler viz, checkpoint helpers
+│  └─ utils.py              # W&B id helpers, misc tools
+├─ train.py                 # Main training entrypoint (Hydra-driven)
+├─ run_experiment.py        # Post-train experiment/analysis runner
+├─ theory_notes.md          # Notes on energy models & debiasing ideas
+└─ environment.yml          # Reproducible env
 ```
 
 
+## 🚀 Quickstart
 
-### 2.3) Sampling
+### 1) Choose a config
 
-- Self-normalized importance sampling with $p(z)$ as proposal  
-- Alternatively, sampling with MCMC
+Pick one of the full recipes in `configs/`, for example:
+
+- `configs/mnist_ebm.yaml` — EBM on MNIST with SGLD
+- `configs/binary_mnist_iwae.yaml` — IWAE on Binary MNIST
+- `configs/mnist_miwae_mcar.yaml` / `mnist_miwae_mnar.yaml` — MIWAE with missingness settings
+- `configs/prop_*` — “proportion/bias” variants used for debiasing experiments
+
+### 2) Train
+
+```bash
+# Example: EBM on MNIST
+python train.py   --config-name mnist_ebm.yaml   train.batch_size=128 train.epochs=300   train.accelerator=cuda train.devices=1   logger.wandb.project=HackathonEBM  # (optional) if W&B is wired in your config
+```
+
+**Hydra tips:**  
+- Use `--config-name` to select a full recipe in `configs/` (without the path).  
+- You can override any dotted key at the CLI, e.g. `optimizer.lr=1e-4` or `data.dataloader.batch_size=64`.  
+- Outputs/checkpoints default under `./outputs/<DATE>/<TIME>/` unless overridden by your config.
+
+### 3) Resume / load from checkpoint
+
+```bash
+# Continue training from a checkpoint
+python train.py --config-name mnist_ebm.yaml train.ckpt_path=path/to/checkpoint.ckpt
+
+# Run a post‑train experiment using a checkpoint
+python run_experiment.py   --config-path ./configs --config-name mnist_ebm.yaml   experiment.cfg.ckpt_path=path/to/checkpoint.ckpt
+```
+
+> `run_experiment.py` instantiates `experiments/*` with your Hydra config to perform tasks like sampling or evaluation against held‑out splits.
+
+---
+## Current available experiments :
+
+### Proportion variants for debiasing experiments
+*A specific callback was created to evaluate the debiasing performance of the EBM during training. A classifier needs to be pretrained using the `src/models/MNIST_Classifier.py` script and the resulting weights need to be provided in the config file. This pretrained classifier is used to classify samples generated by the EBM/VAE during training.*
+
+- `configs/prop_binary_mnist_vae.yaml` : VAE on biased Binary MNIST (baseline for debiasing experiments). The proportions are set such that all digits don't appear equally in the training set. Simplified so that only digits 0, 1, 2, 3 and 4 appear in the training set.
+- `configs/prop_binary_mnist_ebm_debiasing.yaml` : EBM trained on the data spaced on biased Binary MNIST (with callback to evaluate debiasing), using the VAE above as base model. (Probably need to retrain the VAE as it is not included in the repo)
 
 
-## 3) Takeaways
+### Possible future experiments
 
-Results with the EBM in data space have been unconvincing so far, better results in the latent space (see 2d-small.ipynb). The notebook is extended into 2d.ipynb, which contains additional results measuring the degree of debiasing as well as a more advanced sampling method (Langevin MCMC). Lower dimensional latent spaces appear to be more easy to work with than higher dimensional ones (see 10d-small.ipynb).
+TODO
 
-## Short walkthrough of the 2D latent EBM
-We first compare the label distributions of biased and unbiased datasets to illustrate a setting of class imbalance between training and test scenarios.  
-![Biased vs Unbiased Label Histograms](figs/bias_unbias_histograms.png)
-
-Next, we train and encode the biased data onto the 2D latent space to observe how digit classes separate under the trained VAE.
-![Scatter of Latent Space by Class](figs/latent_space_scatter.png)
-
-We then sample from the standard normal prior and decode those latent vectors to inspect the raw generative quality based on prior-sampled images.
-![Decoded Images from Prior Samples](figs/decoded_prior_samples.png)
-
-Next, we fit the EBM and contour the learned EBM energy landscape over the latent plane. Using the EBM, we can adjust prior samples to have a better fit to the (limited) unbiased data.
-![Latent Space with EBM Energy Contour](figs/latent_space_ebm_contour.png)
-
-
-Decoding the energy-weighted samples, we can see that the model manages to sample more images from the undersampled classes.
-![Decoded Images from Energy-Weighted Prior Samples](figs/decoded_energy_samples.png)
-
-We overlay the original latent embeddings with both unweighted and energy-weighted prior samples to visualize how the EBM can help adjust class imbalance for generative models!  
-![Latent Space with Energy-Weighted Priors](figs/latent_space_scatter_ew_priors.png)
-
-Notebook 2d.ipynb contains additional results.
-
-
+---
+## TODOs :
+- Add a version of the EBM that operates in the latent space of a pretrained VAE (instead of pixel space)
+- Add other experiments for simpler datasets (UCI?)
 

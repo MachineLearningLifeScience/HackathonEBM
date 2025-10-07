@@ -1,0 +1,30 @@
+# General info
+shape: [28, 28]
+dim: 1
+root: "mnist/"
+
+# Shared dataset class params
+dataset:
+  _target_: src.data.MyMNIST
+  root: "${data.root}"
+  download: True
+  transform:
+    _target_: torchvision.transforms.Compose
+    transforms:
+      - _target_: torchvision.transforms.ToTensor
+      - _target_: torchvision.transforms.Normalize
+        mean: [0.5]
+        std: [0.5]
+    
+# Specific split params
+train_dataset:
+  train: True
+val_dataset:
+  train: False
+
+# Shared dataloader params
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: ${train.batch_size}
+  num_workers: 4
+  pin_memory: True

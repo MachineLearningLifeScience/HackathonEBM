@@ -1,0 +1,20 @@
+# Trains a MIWAE model with MCAR missingness on MNIST (50 % missing)
+
+defaults:
+  - train: default
+  - model: vae/mnist
+  - data: mnist
+  - callbacks: image_vae
+
+# Change model target to MIWAE
+model:
+  _target_: src.models.MIWAE
+
+data:
+  dataset:
+    missing_rate: 0.5
+    threshold: 10    # 0 to apply to all pixels
+    center_box: 10    # Size of central box with higher missingness
+    digits_box: [3, 8]  # Digits with special missingness in
+    drop_digits: [0, 1, 2]  # Digits to drop from dataset
+
