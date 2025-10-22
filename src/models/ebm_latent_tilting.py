@@ -79,7 +79,9 @@ class EBMLatentTilting(EBM):
         energy_loss = energy_real - energy_sampled
 
         # Reg loss
-        reg_loss = self.hparams.model.lambda_reg * (energy_real**2 + energy_sampled**2)
+        reg_loss = self.regularization_term(
+            z_real, z_sampled, energy_real, energy_sampled
+        )
 
         loss = reg_loss + energy_loss
 

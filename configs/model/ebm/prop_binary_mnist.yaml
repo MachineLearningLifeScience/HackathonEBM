@@ -1,7 +1,10 @@
 _target_: src.models.EBMTilting
 _recursive_: false  
 
-lambda_reg: 1e-1
+wgan_gp_lambda: 0.0
+l2_energy_lambda: 0.0
+l2_params_lambda: 0.0
+
 
 base_model: "/Users/hhjs/Documents/Projects/HackathonMlLS1506/HackathonEBM/prop_binary_mnist_vae-2025-09-19T10-13-41/checkpoints/last.ckpt"
 

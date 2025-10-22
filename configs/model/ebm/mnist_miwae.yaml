@@ -1,7 +1,10 @@
 _target_: src.models.EBMTilting
 _recursive_: false  
 
-lambda_reg: 1e-1
+wgan_gp_lambda: 0.0
+l2_energy_lambda: 0.0
+l2_params_lambda: 0.0
+
 
 base_model: "/dtu/p1/ipeaz/logs/EBM_Hackathon/mnist_miwae_mnar-2025-09-08T19-17-44/checkpoints/last.ckpt"
 
