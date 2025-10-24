@@ -247,16 +247,17 @@ class EBM(BaseModel):
         """
         with torch.enable_grad():
             x_real.requires_grad_(True)
-
+            max_batch = min(x_real.size(0), x_sampled.size(0))
             epsilon = torch.rand(
-                x_real.size(0), 1, 1, 1, device=x_real.device
+               *([max_batch] + [1] * (x_real.dim() - 1)), device=x_real.device
             )  # Interpolation value
 
             x_interpolated = (
-                (epsilon * x_real + (1 - epsilon) * x_sampled)
+                (epsilon * x_real[:max_batch] + (1 - epsilon) * x_sampled[:max_batch])
                 .detach()
                 .requires_grad_(True)
             )
+            
             energy_interpolated = self.energy_net(x_interpolated).mean()
             gradients = torch.autograd.grad(
                 outputs=energy_interpolated,
