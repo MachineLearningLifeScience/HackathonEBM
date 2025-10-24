@@ -1,11 +1,14 @@
-import torch
-import pytorch_lightning as pl
-from torch.nn import functional as F
-from hydra.utils import instantiate
-import numpy as np
 import random
+
+import numpy as np
+import pytorch_lightning as pl
+import torch
+from hydra.utils import instantiate
+from torch.nn import functional as F
+
 from src.models.ebm import EBM
 from src.utils import freeze, load_model
+
 
 class EBMTilting(EBM):
     def __init__(self, base_model, energy_net, sampler, cfg=None, ckpt_path=None, *args, **kwargs):
@@ -16,8 +19,8 @@ class EBMTilting(EBM):
             cfg: Configuration DictConfig
         """
         super().__init__(energy_net=energy_net, sampler=sampler, cfg=cfg, ckpt_path=ckpt_path, *args, **kwargs)
-
         self.base_model, _ = load_model(ckpt_path=base_model)
+        assert self.base_model.latent_dim == self.energy_net.input_dim, "Base model latent dim must match energy net input dim"
         
         # Freeze base model
         freeze(self.base_model)    
@@ -66,7 +69,7 @@ class EBMTilting(EBM):
         energy_loss =  energy_real - energy_sampled
 
         # Reg loss
-        reg_loss = self.hparams.model.lambda_reg * (energy_real ** 2 + energy_sampled ** 2)
+        reg_loss = self.regularization_term(x_real, x_sampled, energy_real, energy_sampled)
 
         loss = reg_loss + energy_loss
 
