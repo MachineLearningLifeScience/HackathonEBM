@@ -61,7 +61,7 @@ class MNISTRepopulated(MNIST):
                 digit_targets = self.targets[digit_mask]
                 n_samples = int(len(digit_data) * prop)
                 if n_samples > 0:
-                    indices = np.random.choice(len(digit_data), n_samples, replace=True)
+                    indices = np.random.choice(len(digit_data), n_samples, replace=False)
                     new_data.append(digit_data[indices])
                     new_targets.append(digit_targets[indices])
         self.data = torch.cat(new_data, dim=0)
