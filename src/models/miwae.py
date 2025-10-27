@@ -25,7 +25,7 @@ class MIWAE(VAE):
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
 
-    def elbo(self, x, mask, K=None, return_losses=False):
+    def elbo(self, x, mask=None, K=None, return_losses=False):
         """ MIWAE ELBO
         x: [batch, input_dim]
         mask: [batch, input_dim] binary mask (1=observed, 0=missing)
@@ -37,7 +37,11 @@ class MIWAE(VAE):
         """
         if K==None:
             K = self.K
-        mean, logvar = self.encode(x)
+            
+        if mask is None:
+            mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
+        
+        mean, logvar = self.encode(x*mask)
         z = reparam(mean, logvar, K)  # [batch, K, latent_dim]
 
         # Compute log q(z|x_obs)

@@ -2,7 +2,7 @@ _target_: src.models.VAE
 _recursive_: false  
 
 K: 5
-latent_dim: 16
+latent_dim: 32
 
 likelihood:
   _target_: src.likelihoods.GaussianLikelihood

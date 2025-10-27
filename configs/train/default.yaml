@@ -11,8 +11,8 @@ optimizer:
   lr: 1e-4
   weight_decay: 0.
   betas: [0., 0.999]
-scheduler:
-  _target_: torch.optim.lr_scheduler.StepLR
-  step_size: 1
-  gamma: 0.97
+#scheduler:
+#  _target_: torch.optim.lr_scheduler.StepLR
+#  step_size: 1
+#  gamma: 0.97
 debug: false

@@ -82,5 +82,7 @@ class BaseModel(pl.LightningModule):
     
     def configure_optimizers(self):
         optimizer = instantiate(self.hparams.train.optimizer, params=self.parameters())
-        scheduler = instantiate(self.hparams.train.scheduler, optimizer=optimizer)
-        return [optimizer], [scheduler]
+        if hasattr(self.hparams.train, "scheduler"):
+            scheduler = instantiate(self.hparams.train.scheduler, optimizer=optimizer)
+            return [optimizer], [scheduler]
+        return optimizer
