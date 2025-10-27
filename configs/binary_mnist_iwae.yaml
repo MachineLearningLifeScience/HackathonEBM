@@ -2,10 +2,9 @@
 
 defaults:
   - train: default
-  - model: vae/mnist
-  - data: prop_mnist
-  - callbacks: image_ebm_debiasing_proportion
+  - model: vae/binary_mnist
+  - data: binary_mnist
+  - callbacks: image_vae
 
 model:
-  _target_: src.models.VAE
-  latent_dim: 10
+  _target_: src.models.MIWAE

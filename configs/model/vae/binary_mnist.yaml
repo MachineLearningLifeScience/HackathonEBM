@@ -2,7 +2,7 @@ _target_: src.models.VAE
 _recursive_: false  
 
 K: 5
-latent_dim: 64
+latent_dim: 16
 
 likelihood:
   _target_: src.likelihoods.BernoulliLikelihood
@@ -16,7 +16,7 @@ encoder:
   kernel_sizes: [4, 4, 4]
   strides: [2, 2, 1]
   paddings: [1, 1, 0]
-  batch_norm: True
+  batch_norm: False
     
 decoder:
   _target_: src.layers.ConvDecoder
@@ -27,5 +27,5 @@ decoder:
   kernel_sizes: ${reverse:${model.encoder.kernel_sizes}}
   strides: ${reverse:${model.encoder.strides}}
   paddings: ${reverse:${model.encoder.paddings}}
-  batch_norm: True
+  batch_norm: False
 

@@ -100,7 +100,12 @@ class VAE(BaseModel):
         """
         if K == None:
             K = self.K
-        mean, logvar = self.encode(x)
+
+        if mask is None:
+            mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
+            
+        mean, logvar = self.encode(x*mask)
+
         z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
 
         # Decode

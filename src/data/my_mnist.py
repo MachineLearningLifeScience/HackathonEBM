@@ -47,7 +47,7 @@ class MyMNIST(MNIST):
             ] = True
 
             # Base missingness: high intensity pixels
-            high_intensity = img_np > self.intensity_threshold
+            high_intensity = img_np >= self.intensity_threshold
             prob_mask = np.random.rand(*img_np.shape)
 
             # For digits 3 and 8, central high-intensity pixels are much more likely to be missing

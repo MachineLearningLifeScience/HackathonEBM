@@ -1,10 +1,8 @@
 # Trains a MIWAE model with MCAR missingness on MNIST (50 % missing)
-
-
 defaults:
   - train: default
-  - model: vae/mnist
-  - data: mnist
+  - model: vae/binary_mnist
+  - data: binary_mnist
   - callbacks: image_vae
 
 # Change model target to MIWAE

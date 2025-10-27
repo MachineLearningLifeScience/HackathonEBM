@@ -2,7 +2,7 @@ import torch
 import pytorch_lightning as pl
 import torch.distributions as td
 from hydra.utils import instantiate
-from src.utils import reparam
+from src.utils import reparam, gaussian_log_prob
 from src.models.vae import VAE
 
 class MIWAE(VAE):
@@ -43,26 +43,25 @@ class MIWAE(VAE):
         # Compute log q(z|x_obs)
         qz_mean = mean.unsqueeze(1).expand(-1, K, -1)  # [batch, K, latent_dim]
         qz_logvar = logvar.unsqueeze(1).expand(-1, K, -1)
-        qz = td.Normal(qz_mean, torch.exp(0.5 * qz_logvar))
-        log_qz = qz.log_prob(z).sum(-1)  # [batch, K]
+        log_qz = gaussian_log_prob(z, qz_mean, qz_logvar).sum(-1)  # [batch, K]
 
         # Compute log p(z)
-        pz = td.Normal(torch.zeros_like(z), torch.ones_like(z))
-        log_pz = pz.log_prob(z).sum(-1)  # [batch, K]
-
+        log_pz = gaussian_log_prob(z, torch.zeros_like(z), torch.zeros_like(z)).sum(-1)  # [batch, K]
+        
         # Decode
-        x_recon = self.decode(z)  # [batch, K, input_dim]
+        x_recon = self.decode(z)  # [batch, K, *input_dims]
 
         # Compute log p(x_obs|z)
         # Only observed values contribute to likelihood
         log_px = self.likelihood.log_prob_mask(x, x_recon, mask=mask, mode='sum')  # [batch, K]
 
-        # Importance weights
+        # Importance weights (unnormalized)
         log_w = log_px + log_pz - log_qz  # [batch, K]
-        log_w = log_w - torch.logsumexp(log_w, dim=1, keepdim=True)
 
         # MIWAE ELBO
-        elbo = torch.logsumexp(log_px + log_pz - log_qz, dim=1) - torch.log(torch.tensor(K, device=x.device, dtype=x.dtype))
+        log_K = torch.log(torch.as_tensor(K, device=x.device, dtype=x.dtype))
+        elbo = torch.logsumexp(log_w, dim=1) - log_K
+
         loss = -elbo
         if return_losses:
             loss_dict = {
@@ -70,8 +69,8 @@ class MIWAE(VAE):
             }
             return loss, loss_dict
         return loss
-
-    def reconstruct(self, x, mask, K=None, *args, **kwargs):
+    
+    def reconstruct(self, x, mask=None, K=None, *args, **kwargs):
         """ Reconstruct the input from the latent space.
         Args:
             x: [batch, input_dim]
@@ -82,17 +81,29 @@ class MIWAE(VAE):
         """
         if K is None:
             K = self.K
-        with torch.no_grad():
-            mean, logvar = self.encode(x)
-            z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
+
+        if mask is None:
+            mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
             
+        with torch.no_grad():
+            qz_mean, qz_logvar = self.encode(x)
+            z = reparam(qz_mean, qz_logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
+
             # Decode
-            x_recon = self.decode(z)  # [batch, K, input_dim]
-                        
-            # Get weights
+            x_recon = self.decode(z)  # [batch, K, *input_dims]
+
+            # Compute log p(x_obs|z)
+            # Only observed values contribute to likelihood
             log_px = self.likelihood.log_prob_mask(x, x_recon, mask=mask, mode='sum')  # [batch, K]
-            log_pz = td.Normal(torch.zeros_like(z), torch.ones_like(z)).log_prob(z).sum(-1)  # [batch, K]
-            log_qz = td.Normal(mean.unsqueeze(1).expand(-1, K, -1), torch.exp(0.5 * logvar).unsqueeze(1)).log_prob(z).sum(-1)  # [batch, K]
+    
+            # Compute log q(z|x_obs)
+            qz_mean = qz_mean.unsqueeze(1).expand(-1, K, -1)  # [batch, K, latent_dim]
+            qz_logvar = qz_logvar.unsqueeze(1).expand(-1, K, -1)
+            log_qz = gaussian_log_prob(z, qz_mean, qz_logvar).sum(-1)  # [batch, K]
+
+            # Compute log p(z)
+            log_pz = gaussian_log_prob(z, torch.zeros_like(z), torch.zeros_like(z)).sum(-1)  # [batch, K]
+            
             log_w = log_px + log_pz - log_qz  # [batch, K]
             log_w = log_w - torch.logsumexp(log_w, dim=1, keepdim=True)  # Normalize weights
 
@@ -103,5 +114,4 @@ class MIWAE(VAE):
             x_recon = x_recon.sum(dim=1)  # Weighted sum over K
 
             x_recon = self.likelihood.logits_to_data(x_recon)
-
         return x_recon

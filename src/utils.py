@@ -5,6 +5,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from wandb import config
+import numpy as np
 
 # This allows to reverse a list in the config
 OmegaConf.register_new_resolver("reverse", lambda x: list(reversed(x)))
@@ -31,6 +32,19 @@ def reparam(mu, logvar, n_samples=1, unsqueeze=False):
     std = torch.exp(0.5 * logvar)
     eps = torch.randn_like(std)
     return mu + eps * std
+
+def gaussian_log_prob(x, mean, logvar):
+    """
+    Compute the log probability of x under a Gaussian distribution with given mean and log variance.
+    Args:
+        x (torch.Tensor): Input data.
+        mean (torch.Tensor): Mean of the Gaussian distribution.
+        logvar (torch.Tensor): Log variance of the Gaussian distribution.
+    Returns:
+        torch.Tensor: Log probability of x.
+    """
+    logp = -0.5 * (np.log(2 * np.pi) + logvar + (x - mean) ** 2 / torch.exp(logvar))
+    return logp
 
 
 def freeze(model):

@@ -24,7 +24,7 @@ class ImageReconstruction(pl.Callback):
                 images = batch[: self.num_images]
             images = images.to(pl_module.device)
             mask = mask.to(pl_module.device)
-            reconstructions = pl_module.reconstruct(images, mask, **self.kwargs)
+            reconstructions = pl_module.reconstruct(images*mask, mask, **self.kwargs)
 
         # Move to [0,1]
         images = (images + 1) / 2
@@ -33,7 +33,7 @@ class ImageReconstruction(pl.Callback):
 
         # Create a grid of originals and reconstructions
         grid = vutils.make_grid(
-            torch.cat([images, reconstructions], dim=0),
+            torch.cat([images*mask, reconstructions], dim=0),
             nrow=self.num_images,
             padding=2,
         )

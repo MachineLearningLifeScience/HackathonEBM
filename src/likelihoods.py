@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn.modules.loss import BCELoss, BCEWithLogitsLoss
 import torch.nn.functional as F
 import numpy as np
-from src.utils import reparam
+from src.utils import reparam, gaussian_log_prob
 
 
 class Likelihood(nn.Module):
@@ -152,6 +152,6 @@ class GaussianLikelihood(Likelihood):
    
     def log_prob(self, data, logits, *args, **kwargs):
         mean, logvar = self.logits_to_params(logits)
-        logp = -0.5 * (np.log(2 * np.pi) + logvar + (data - mean) ** 2 / torch.exp(logvar))
+        logp = gaussian_log_prob(data, mean, logvar)
         return logp.sum(-3)
     
