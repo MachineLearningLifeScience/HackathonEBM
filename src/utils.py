@@ -6,6 +6,9 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from wandb import config
 import numpy as np
+from datetime import datetime
+import pytorch_lightning as pl
+from omegaconf import OmegaConf 
 
 # This allows to reverse a list in the config
 OmegaConf.register_new_resolver("reverse", lambda x: list(reversed(x)))
@@ -91,3 +94,34 @@ def get_wandb_run_id(log_dir):
     if "-" in latest_run:
         return latest_run.split("-")[-1]
     return None
+
+
+def get_wandb_logger(config, config_name):
+    config_base = os.path.splitext(config_name)[0]
+    if config.data.dataset.get("idx", None) is not None:
+        config_base += f"_{config.data.dataset.idx}"
+
+    run_name = config.train.get("resume", False) 
+    if not run_name:
+        timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+        run_name = f"{config_base}-{timestamp}"
+    log_dir = os.path.join(config.train.log_dir, run_name)
+
+    # Save config to log_dir
+    os.makedirs(log_dir, exist_ok=True)
+    with open(os.path.join(log_dir, "config.yaml"), "w") as f:
+        OmegaConf.save(config=config, f=f.name)
+
+    # Flag to avoid logging in debug mode
+    if not config.train.get("debug", False):
+        wandb_logger = pl.loggers.WandbLogger(
+            # entity = None, # wandb user (default) or name of the team
+            project='EBM_Hackathon', 
+            config=OmegaConf.to_container(config, resolve=True),
+            save_dir=log_dir,
+            name=run_name,
+            id=get_wandb_run_id(log_dir),
+            )
+    else:
+        wandb_logger = None
+    return wandb_logger, log_dir

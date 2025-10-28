@@ -5,3 +5,6 @@ defaults:
   - model: vae/binary_mnist
   - data: binary_mnist
   - callbacks: image_vae
+
+train:
+  epochs: 400

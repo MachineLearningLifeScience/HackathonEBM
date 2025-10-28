@@ -14,3 +14,5 @@ data:
     missing_rate: 0.5
     threshold: 0    # 0 to apply to all pixels
 
+train:
+  epochs: 400

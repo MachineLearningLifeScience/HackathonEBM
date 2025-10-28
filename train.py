@@ -12,8 +12,7 @@ import os
 import hydra
 from hydra.utils import instantiate
 from hydra.core.hydra_config import HydraConfig
-from datetime import datetime
-from src.utils import get_wandb_run_id
+from src.utils import get_wandb_logger
 from omegaconf import OmegaConf
 
 @hydra.main(version_base=None, config_path="configs")
@@ -30,36 +29,10 @@ def main(config: omegaconf.DictConfig):
 
     # Data loaders
     loaders = get_data_loaders(config)  #[train_loader, val_loader, ?test_loader]
-        
-    # Wandb logger
+    
+    # Wandb Logger
     config_name = HydraConfig.get().job.config_name
-    config_base = os.path.splitext(config_name)[0]
-    if config.data.dataset.get("idx", None) is not None:
-        config_base += f"_{config.data.dataset.idx}"
-
-    run_name = config.train.get("resume", False) 
-    if not run_name:
-        timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
-        run_name = f"{config_base}-{timestamp}"
-    log_dir = os.path.join(config.train.log_dir, run_name)
-
-    # Save config to log_dir
-    os.makedirs(log_dir, exist_ok=True)
-    with open(os.path.join(log_dir, "config.yaml"), "w") as f:
-        OmegaConf.save(config=config, f=f.name)
-
-    # Flag to avoid logging in debug mode
-    if not config.train.get("debug", False):
-        wandb_logger = pl.loggers.WandbLogger(
-            # entity = None, # wandb user (default) or name of the team
-            project='EBM_Hackathon', 
-            config=omegaconf.OmegaConf.to_container(config, resolve=True),
-            save_dir=log_dir,
-            name=run_name,
-            id=get_wandb_run_id(log_dir),
-            )
-    else:
-        wandb_logger = None
+    wandb_logger, log_dir = get_wandb_logger(config, config_name)
 
     # Callbacks
     callbacks = get_callbacks(config, loaders)

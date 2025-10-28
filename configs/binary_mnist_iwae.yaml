@@ -8,3 +8,6 @@ defaults:
 
 model:
   _target_: src.models.MIWAE
+
+train:
+  epochs: 400

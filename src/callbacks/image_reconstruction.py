@@ -27,7 +27,7 @@ class ImageReconstruction(pl.Callback):
             reconstructions = pl_module.reconstruct(images*mask, mask, **self.kwargs)
 
         # Move to [0,1]
-        images = (images + 1) / 2
+        images = (images*mask + 1) / 2
         reconstructions = (reconstructions + 1) / 2
         reconstructions = torch.clamp(reconstructions, min=0, max=1)
 
