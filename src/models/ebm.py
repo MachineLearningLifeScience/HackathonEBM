@@ -15,6 +15,7 @@ class EBM(BaseModel):
         energy_net,
         sampler,
         buffer_size=1024,
+        init_dist='normal',
         cfg=None,
         ckpt_path=None,
         *args,
@@ -30,12 +31,11 @@ class EBM(BaseModel):
         super().__init__(cfg)
         self.energy_net = instantiate(energy_net)
         self.sampler = instantiate(sampler, log_prob=self.u_log_prob)
+        self.init_dist = init_dist
 
         self.register_buffer(
             "buffer",
-            torch.randn(
-                [buffer_size, self.hparams.data.dim, *list(self.hparams.data.shape)]
-            ),
+            self.get_init(buffer_size)
         )
 
         if ckpt_path is not None:
@@ -52,23 +52,15 @@ class EBM(BaseModel):
             # Buffer sampling
             init = self.get_buffer(x.shape[0])
         else:
-            init = (
-                torch.rand(
-                    x.shape[0],
-                    self.hparams.data.dim,
-                    *self.hparams.data.shape,
-                    device=self.device
-                )
-                * 2
-                - 1
-            )
-
+            init = self.get_init(x.shape[0])
         x_sampled = self.sample(num_samples=x.shape[0], init=init)
         self.update_buffer(x_sampled.detach())
 
         # Add small noise to the input
-        small_noise = torch.randn_like(x) * 0.005
-        x.add_(small_noise).clamp_(min=-1.0, max=1.0)
+        x = x + torch.randn_like(x) * 0.005
+
+        if self.init_dist == 'uniform':
+            x.clamp_(min=-1.0, max=1.0)
 
         if return_losses:
             loss, loss_dict = self.loss(x, x_sampled, return_losses=return_losses)
@@ -96,22 +88,50 @@ class EBM(BaseModel):
         energy_loss = energy_real - energy_sampled
 
         # Reg loss
-        reg_loss = self.regularization_term(
+        reg_all, reg_losses = self.regularization_term(
             x_real, x_sampled, energy_real, energy_sampled
         )
 
-        loss = reg_loss + energy_loss
+        loss = reg_all + energy_loss
 
         if return_losses:
             loss_dict = {
                 "energy_real": energy_real.mean(),
                 "energy_sampled": energy_sampled.mean(),
                 "energy_loss": energy_loss.mean(),
-                "reg_loss": reg_loss.mean(),
+                "reg_loss": reg_all.mean(),
             }
+            loss_dict.update(reg_losses)
             return loss, loss_dict
         else:
             return loss
+
+    def get_init(self, num_samples):
+        """
+        Get initial samples for MCMC from the specified distribution.
+        Args:
+            num_samples: Number of samples to generate
+        Returns:
+            init: (num_samples, *data_shape)
+        """
+        if self.init_dist == 'uniform':
+            init = torch.rand(
+                num_samples,
+                self.hparams.data.dim,
+                *self.hparams.data.shape,
+                device=self.device
+            ) * 2 - 1  # Uniform in [-1, 1]
+        elif self.init_dist == 'normal':
+            init = torch.randn(
+                num_samples,
+                self.hparams.data.dim,
+                *self.hparams.data.shape,
+                device=self.device
+            )  # Standard normal
+        else:
+            raise ValueError(f"Unknown init_dist: {self.init_dist}")
+        return init
+
 
     def u_log_prob(self, x):
         """
@@ -137,32 +157,25 @@ class EBM(BaseModel):
             num_samples = self.hparams.train.batch_size
         # Choose 95% of the batch from the buffer, 5% generate from scratch
         n_new = np.random.binomial(num_samples, 0.05)
-        rand_imgs = (
-            torch.rand(
-                n_new,
-                self.hparams.data.dim,
-                *self.hparams.data.shape,
-                device=self.device
-            )
-            * 2
-            - 1
-        )
-        old_imgs = torch.stack(
-            random.choices(self.buffer, k=num_samples - n_new), dim=0
-        )
+        # fresh noise on the SAME device
+        rand_imgs = self.get_init(n_new)
+
+        # sample buffer by indices (fast, on-device)
+        if self.buffer.size(0) >= num_samples - n_new:
+            idx = torch.randint(0, self.buffer.size(0), (num_samples - n_new,), device=self.buffer.device)
+            old_imgs = self.buffer[idx]
+        else:
+            old_imgs = self.buffer
+
         init = torch.cat([rand_imgs, old_imgs], dim=0).detach()
         return init
 
     def update_buffer(self, samples):
-        """
-        Function for getting a new batch of "fake" images.
-        Inputs:
-            steps - Number of iterations in the MCMC algorithm
-            step_size - Learning rate nu in the algorithm above
-        """
-        # Add new images to the buffer and remove old ones if needed
-        buffer = torch.cat([samples, self.buffer])
-        self.buffer = buffer[: self.buffer.size(0)]
+        with torch.no_grad():
+            B = self.buffer.size(0)
+            n = min(samples.size(0), B)
+            # simple FIFO: put new in front, shift old down
+            self.buffer = torch.cat([samples[:n].detach(), self.buffer], dim=0)[:B]
 
     def sample(self, num_samples=None, init=None, **kwargs):
         """
@@ -175,17 +188,8 @@ class EBM(BaseModel):
         if num_samples is None:
             num_samples = self.hparams.train.batch_size
         if init is None:
-            init = (
-                torch.rand(
-                    num_samples,
-                    self.hparams.data.dim,
-                    *self.hparams.data.shape,
-                    device=self.device
-                )
-                * 2
-                - 1
-            )
-
+            init = self.get_init(num_samples)
+            
         # Before MCMC: set model parameters to "required_grad=False"
         # because we are only interested in the gradients of the input.
         is_training = self.training
@@ -214,20 +218,28 @@ class EBM(BaseModel):
         Returns:
             reg_term: The computed regularization term
         """
-        reg_term = 0.0
+        reg_term = torch.tensor([0.0], device=x_real.device)
+
+        reg_losses = {}
 
         if self.hparams.model.get("wgan_gp_lambda", 0.0) > 0.0:
-            reg_term += self.hparams.model.wgan_gp_lambda * self.wgan_gradient_penalty(
+            loss = self.hparams.model.wgan_gp_lambda * self.wgan_gradient_penalty(
                 x_real, x_sampled
             )
-        if self.hparams.model.get("l2_energy_lambda", 0.0) > 0.0:
-            reg_term += self.hparams.model.l2_energy_lambda * self.l2_penalty(
-                energy_real, energy_sampled
-            )
-        if self.hparams.model.get("l2_params_lambda", 0.0) > 0.0:
-            reg_term += self.hparams.model.l2_params_lambda * self.l2_params()
+            reg_losses["wgan_gp"] = loss
+            reg_term += loss
+        
+        # L2 energy penalty
+        loss = self.l2_penalty(energy_real, energy_sampled)
+        reg_losses["l2_energy"] = loss
+        reg_term += self.hparams.model.get("l2_energy_lambda", 0.0) * loss
 
-        return reg_term
+        # L2 parameter penalty
+        loss = self.l2_params()
+        reg_losses["l2_params"] = loss
+        reg_term += self.hparams.model.get("l2_params_lambda", 0.0) * loss
+
+        return reg_term, reg_losses
 
     def wgan_gradient_penalty(
         self,
@@ -248,7 +260,7 @@ class EBM(BaseModel):
         with torch.enable_grad():
             x_real.requires_grad_(True)
             max_batch = min(x_real.size(0), x_sampled.size(0))
-            epsilon = torch.rand(
+            epsilon = torch.randn(
                *([max_batch] + [1] * (x_real.dim() - 1)), device=x_real.device
             )  # Interpolation value
 
@@ -271,17 +283,11 @@ class EBM(BaseModel):
             gradient_penalty = ((gradient_norm - 1) ** 2).mean()
             return gradient_penalty
 
-    def l2_penalty(
-        self,
-        energy_real,
-        energy_sampled,
-    ):
+    def l2_penalty(self, energy_real, energy_sampled):
         """
-        Compute the L2 penalty on the energy outputs.
-        Returns:
-            l2_penalty: The computed L2 penalty
+        Penalize large absolute energy values (stabilizes scale).
         """
-        return ((energy_real - energy_sampled) ** 2).mean()
+        return ((energy_real**2) + (energy_sampled**2)).mean()
 
     def l2_params(
         self,
