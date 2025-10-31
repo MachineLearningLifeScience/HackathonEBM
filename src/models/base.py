@@ -61,7 +61,12 @@ class BaseModel(pl.LightningModule):
         pass
 
     def training_step(self, batch, batch_idx):
-        x, mask = batch
+        if isinstance(batch, (list, tuple)):
+            x = batch[0]
+            mask = batch[1] if len(batch) == 2 else None
+        else:
+            x = batch
+            mask = None
         loss, loss_dict = self.forward(x, mask, return_losses=True)
         self.log('train/loss', loss.mean(), on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         loss_dict = {f'train/{k}': v for k, v in loss_dict.items()}
@@ -69,7 +74,12 @@ class BaseModel(pl.LightningModule):
         return loss.mean()
         
     def validation_step(self, batch, batch_idx):
-        x, mask = batch
+        if isinstance(batch, (list, tuple)):
+            x = batch[0]
+            mask = batch[1] if len(batch) == 2 else None
+        else:
+            x = batch
+            mask = None
         loss, loss_dict = self.forward(x, mask, return_losses=True)
         self.log('val/loss', loss.mean(), on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
