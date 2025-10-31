@@ -10,87 +10,83 @@ class SGLD(torch.nn.Module):
                  steps, 
                  step_size, 
                  log_prob,
-                 noise_std=1.0, 
+                 noise_std=1.0,
+                 clip_grads=False,
+                 clamp=False
                  ):
         """
-        Inputs:
-            model - Neural network to use for modeling E_theta
-            img_shape - Shape of the images to model
-            sample_size - Batch size of the samples
-            steps - Number of iterations in the MCMC algorithm
-            step_size - Learning rate nu in the algorithm above
-            u_log_prob - Function to compute the unnormalized log probability of the data
-            max_len - Maximum number of data points to keep in the buffer
+        Stochastic Gradient Langevin Dynamics (SGLD) sampler.
+
+        Args:
+            input_dim: dimensionality of each sample
+            input_shape: spatial shape (if applicable)
+            sample_size: number of parallel samples to draw
+            steps: number of Langevin steps
+            step_size: step size η
+            log_prob: function returning log p(x) (can be unnormalized)
+            noise_std: std multiplier for injected noise
         """
         super().__init__()
         self.input_dim = input_dim
-        self.img_shape = list(input_shape)
+        self.input_shape = list(input_shape)
         self.sample_size = sample_size
         self.steps = steps
         self.step_size = step_size 
-        self.noise_std = noise_std  # Standard deviation of the noise to add
-        self.log_prob = log_prob  # Placeholder for the log probability function
+        self.noise_std = noise_std
+        self.clip_grads = clip_grads
+        self.clamp = clamp
+        self.log_prob = log_prob
 
 
-    def __call__(self, num_samples=None, init=None, steps=None, step_size=None, return_img_per_step=False, *args, **kwargs):
-        """
-        Function for sampling images.
-        Inputs:
-            init - Images to start from for sampling. If you want to generate new images, enter None
-            steps - Number of iterations in the MCMC algorithm.
-            step_size - Learning rate nu in the algorithm above
-            return_img_per_step - If True, we return the sample at every iteration of the MCMC
-        """
+    def __call__(self, num_samples=None, init=None, steps=None, step_size=None, return_steps=False, *args, **kwargs):
         if num_samples is None:
             num_samples = self.sample_size
-        if init==None:
-            # If no initial images are provided, generate random noise
+        if init is None:
             init = torch.rand(num_samples, self.input_dim, *self.input_shape) * 2 - 1
         if steps is None:
             steps = self.steps
-
         if step_size is None:
             step_size = self.step_size
 
-        x = init.clone()
-        x.requires_grad = True
-        
-        # Enable gradient calculation if not already the case
         had_gradients_enabled = torch.is_grad_enabled()
         torch.set_grad_enabled(True)
-        
-        # We use a buffer tensor in which we generate noise each loop iteration.
-        # More efficient than creating a new tensor every iteration.
-        noise = torch.randn(x.shape, device=x.device)
-        
-        # List for storing generations at each step (for later analysis)
-        imgs_per_step = []
-        
-        # Loop over K (steps)
-        for _ in range(steps):
-            # Part 1: Add noise to the input.
-            noise.normal_(0, self.noise_std * step_size)
-            x.data.add_(noise.data)
-            x.data.clamp_(min=-1.0, max=1.0)
+
+        x = init.clone().detach().requires_grad_(True)
+        if self.clamp:                        
+            with torch.no_grad():
+                x.clamp_(min=-1.0, max=1.0)
             
-            # Part 2: calculate gradients for the current input.
+        per_step = []
+        step_sqrt = torch.sqrt(torch.tensor(step_size, device=x.device, dtype=x.dtype))
+
+        for _ in range(steps):
+            # 1. Compute ∇ log p(x)
             log_prob = self.log_prob(x)
             log_prob.sum().backward()
-            x.grad.data.clamp_(-0.03, 0.03) # For stabilizing and preventing too high gradients
 
-            # Apply gradients to our current samples
-            x.data.add_(0.5*step_size**2 * x.grad.data)
-            x.grad.detach_()
+            with torch.no_grad():
+                if self.clip_grads:
+                    x.grad.clamp_(-0.03, 0.03)
+                    
+                # 2. Langevin drift
+                x.add_(0.5 * step_size * x.grad)
+
+                # 3. Add noise
+                noise = torch.randn_like(x) * self.noise_std * step_sqrt
+                x.add_(noise)
+
+                # 4. Clamp if needed
+                if self.clamp:
+                    x.clamp_(min=-1.0, max=1.0)
+
             x.grad.zero_()
-            x.data.clamp_(min=-1.0, max=1.0)
-            
-            if return_img_per_step:
-                imgs_per_step.append(x.clone().detach())
-        
-        # Reset gradient calculation to setting before this function
+
+            if return_steps:
+                per_step.append(x.clone().detach())
+
         torch.set_grad_enabled(had_gradients_enabled)
 
-        if return_img_per_step:
-            return torch.stack(imgs_per_step, dim=0)
+        if return_steps:
+            return torch.stack(per_step, dim=1)
         else:
             return x
