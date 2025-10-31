@@ -1,0 +1,25 @@
+_target_: src.models.MIWAE
+_recursive_: false  
+
+K: 5
+latent_dim: 20
+
+likelihood:
+  _target_: src.likelihoods.BernoulliLikelihood
+
+# From EDDI paper
+encoder:
+  _target_: src.layers.PNPEncoder
+  input_dim: ${data.dim}
+  emb_dim: 20
+  h_dim: 500
+  hidden_dims: [500, 500, 200]
+  latent_dim: ${model.latent_dim}
+    
+decoder:
+  _target_: src.layers.MLP
+  input_dim: ${model.latent_dim}
+  hidden_dims: [200, 500, 500]
+  output_dim: 784
+  activation: "relu"
+  output_shape: [28,28]
