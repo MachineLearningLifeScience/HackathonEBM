@@ -48,7 +48,11 @@ class VAE(BaseModel):
             self.init_from_ckpt(ckpt_path)
 
     def encode(self, x):
-        mean, logvar = self.encoder(x)
+        params = self.encoder(x)
+        if isinstance(params, tuple):
+            mean, logvar = params
+        else:
+            mean, logvar = torch.chunk(params, 2, dim=-1)
         return mean, logvar
 
     def decode(self, z):
@@ -156,7 +160,7 @@ class VAE(BaseModel):
             x_recon = self.likelihood.logits_to_data(x_recon)
         return x_recon
 
-    def sample(self, num_samples, device=None):
+    def sample(self, num_samples, device=None, *args, **kwargs):
         """
         Generate samples from the model's prior.
         Returns: [num_samples, *input_dim]
@@ -164,7 +168,7 @@ class VAE(BaseModel):
         device = device or next(self.parameters()).device
         z = torch.randn(num_samples, self.latent_dim, device=device)
         x_samples = self.decoder(z)
-        x_samples = self.likelihood.logits_to_data(x_samples)
+        x_samples = self.likelihood.logits_to_data(x_samples, *args, **kwargs)
 
         return x_samples
 
