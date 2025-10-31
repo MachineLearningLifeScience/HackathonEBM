@@ -11,8 +11,8 @@ def get_callbacks(config, loaders):
         "classify_samples",
     ]
     callbacks = []
-    if config.callbacks is None:
-        return callbacks
+    if not hasattr(config, "callbacks"):
+        return []
     for name, callback_cfg in config.callbacks.items():
         split = callback_cfg.get("split", None)
         loader = loaders[splits[split]] if split in splits else None
