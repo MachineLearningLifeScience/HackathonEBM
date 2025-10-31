@@ -28,3 +28,4 @@ dataloader:
   batch_size: ${train.batch_size}
   num_workers: 4
   pin_memory: True
+  persistent_workers: True
