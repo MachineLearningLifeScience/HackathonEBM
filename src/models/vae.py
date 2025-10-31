@@ -47,8 +47,8 @@ class VAE(BaseModel):
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
 
-    def encode(self, x):
-        params = self.encoder(x)
+    def encode(self, x, mask):
+        params = self.encoder(x, mask)  # Some encoders will process the mask, others won't
         if isinstance(params, tuple):
             mean, logvar = params
         else:
@@ -108,7 +108,7 @@ class VAE(BaseModel):
         if mask is None:
             mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
             
-        mean, logvar = self.encode(x*mask)
+        mean, logvar = self.encode(x*mask, mask)
 
         z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
 
@@ -151,8 +151,12 @@ class VAE(BaseModel):
         """
         if K is None:
             K = self.K
+
+        if mask is None:
+            mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
+
         with torch.no_grad():
-            mean, logvar = self.encode(x)
+            mean, logvar = self.encode(x, mask)
             z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
             # Decode
             x_recon = self.decode(z)  # [batch, K, input_dim]

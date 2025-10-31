@@ -61,7 +61,7 @@ class ConvEncoder(nn.Module):
         if probabilistic:
             self.fc_logvar = nn.Linear(flattened_size, latent_dim)
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         h = self.flatten(self.conv(x))
         mu = self.fc_mean(h)
         if hasattr(self, 'fc_logvar'):

@@ -41,7 +41,7 @@ class MIWAE(VAE):
         if mask is None:
             mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
         
-        mean, logvar = self.encode(x*mask)
+        mean, logvar = self.encode(x*mask, mask)
         z = reparam(mean, logvar, K)  # [batch, K, latent_dim]
 
         # Compute log q(z|x_obs)
@@ -90,7 +90,7 @@ class MIWAE(VAE):
             mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
             
         with torch.no_grad():
-            qz_mean, qz_logvar = self.encode(x)
+            qz_mean, qz_logvar = self.encode(x, mask)
             z = reparam(qz_mean, qz_logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
 
             # Decode

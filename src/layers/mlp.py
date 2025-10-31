@@ -15,9 +15,11 @@ class MLP(nn.Module):
         norm="none",
         spectral_norm=False,
         dropout=0.0,
+        output_shape=None
     ):
         super(MLP, self).__init__()
         self.input_dim = input_dim
+        self.output_shape = output_shape
         layers = []
         prev_dim = input_dim
         for h_dim in hidden_dims:
@@ -34,6 +36,10 @@ class MLP(nn.Module):
         layers.append(nn.Linear(prev_dim, output_dim))
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
+        original_shape = x.shape
         x = x.view(x.size(0), -1)  # Flatten input if needed
-        return self.model(x)
+        out = self.model(x)
+        if self.output_shape is not None:
+            out = out.view(original_shape[0], -1, *self.output_shape)
+        return out
