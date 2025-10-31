@@ -12,7 +12,7 @@ class MLP(nn.Module):
         hidden_dims,
         output_dim,
         activation="leaky_relu",
-        norm="layer_norm",
+        norm="none",
         spectral_norm=False,
         dropout=0.0,
     ):
