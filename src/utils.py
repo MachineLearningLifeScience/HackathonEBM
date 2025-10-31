@@ -97,6 +97,15 @@ def get_wandb_run_id(log_dir):
 
 
 def get_wandb_logger(config, config_name):
+    """
+    Get a Weights & Biases logger.
+    Args:
+        config (omegaconf.DictConfig): Configuration object.
+        config_name (str): Name of the configuration file.
+    Returns:
+        wandb_logger (pytorch_lightning.loggers.WandbLogger): W&B logger.
+        log_dir (str): Directory for logging.   
+    """
     config_base = os.path.splitext(config_name)[0]
     if config.data.dataset.get("idx", None) is not None:
         config_base += f"_{config.data.dataset.idx}"
