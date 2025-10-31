@@ -2,9 +2,10 @@ _target_: src.models.EBM
 _recursive_: false  
 
 buffer_size: 8192
-wgan_gp_lambda: 0.0
-l2_energy_lambda: 0.0
-l2_params_lambda: 0.0
+init_dist: uniform
+wgan_gp_lambda: 0.
+l2_energy_lambda: 1e-2
+l2_params_lambda: 1e-3
 
 
 energy_net:
@@ -25,6 +26,8 @@ sampler:
   input_dim: ${data.dim}
   input_shape: ${data.shape}  
   sample_size: ${train.batch_size}
-  steps: 60
+  steps: 60                        
   step_size: 4
-  noise_std: 0.005
+  noise_std: 0.005                
+  clip_grads: True                 
+  clamp: True
