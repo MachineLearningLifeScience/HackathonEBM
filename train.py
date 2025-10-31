@@ -19,10 +19,9 @@ from omegaconf import OmegaConf
 def main(config: omegaconf.DictConfig):
 
     # Logs and data directories
-    if 'LOGDIR' in os.environ:
-        log_dir = os.environ['LOGDIR']
-        config.data.root = os.path.join(log_dir, 'data', config.data.root)
-        config.train.log_dir = os.path.join(log_dir, 'logs', 'EBM_Hackathon')
+    log_dir = os.environ['LOGDIR'] if 'LOGDIR' in os.environ else './'
+    config.data.root = os.path.join(log_dir, 'data', config.data.root)
+    config.train.log_dir = os.path.join(log_dir, 'logs', 'EBM_Hackathon')
     
     # Model
     model = instantiate(config.model, cfg=config)
