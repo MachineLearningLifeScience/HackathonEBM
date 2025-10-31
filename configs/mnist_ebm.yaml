@@ -3,3 +3,6 @@ defaults:
   - model: ebm/mnist
   - data: mnist
   - callbacks: image_ebm
+
+train:
+  epochs: 40
