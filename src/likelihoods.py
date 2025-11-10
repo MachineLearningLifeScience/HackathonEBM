@@ -98,15 +98,14 @@ class Likelihood(nn.Module):
 class BernoulliLikelihood(Likelihood):
 
     # ============= Bernoulli ============= #
-    
-    def __init__(self):
+
+    def __init__(self,):
         # Bernoulli does not require any param
         super(BernoulliLikelihood, self).__init__(type='bernoulli')
 
     def log_prob(self, data, logits, params=False, **kwargs):
 
         # Data have to be in {0,1} (binary)
-        data = (data + 1) / 2
         if params:
             logp = -BCELoss(reduction='none')(logits, data).sum(1)
         else:
@@ -132,6 +131,36 @@ class BernoulliLikelihood(Likelihood):
         samples = samples * 2 - 1
         return samples
         
+
+class CategoricalLikelihood(Likelihood):
+    def __init__(self, ):
+        super(CategoricalLikelihood, self).__init__(type='categorical')
+
+    def log_prob(self, data, logits, params=False, **kwargs):
+        # Data have to be in {0, ..., num_classes-1}
+        if params:
+            logp = -F.cross_entropy(logits.flatten(0,1), data.long().flatten(0,1), reduction='none')
+        else:
+            logp = -F.cross_entropy(logits.flatten(0,1), data.long().flatten(0,1), reduction='none')
+         
+        logp = logp.view(data.size(0), -1) # (bs, K)
+        return logp
+    
+    def logits_to_params(self, logits, **kwargs):
+        params = torch.softmax(logits, dim=-1)
+        return params
+    
+    def logits_to_data(self, logits, sample=True, **kwargs):
+        probs = self.logits_to_params(logits)
+        data = self.params_to_data(probs, sample=sample)
+        return data
+    
+    def params_to_data(self, params, sample=True, **kwargs):
+        if sample:
+            samples = torch.distributions.categorical.Categorical(probs=params).sample()
+        else:
+            samples = torch.argmax(params, dim=-1)
+        return samples
 
 
 class GaussianLikelihood(Likelihood):
