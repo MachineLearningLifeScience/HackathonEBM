@@ -1,3 +1,4 @@
+from git import List
 import torch
 import torch.nn as nn
 from src.layers.mlp import MLP
@@ -8,13 +9,16 @@ class PNEncoder(nn.Module):
     https://arxiv.org/pdf/1809.11142
     """
     def __init__(self,
-                 input_dim,
-                 emb_dim=10,
-                 h_dim=20,
-                 hidden_dims=[100, 50, 20],
-                 latent_dim=20
+                 input_dim: int,
+                 emb_dim: int = 10,
+                 h_dim: int = 20,
+                 hidden_dims: List[int] =[100, 50, 20],
+                 latent_dim: int = 20
                  ):
         super(PNEncoder, self).__init__()
+
+
+
         self.embs = nn.Parameter(torch.randn(input_dim, emb_dim))
         self.h = MLP(
             input_dim=emb_dim+1,
@@ -27,7 +31,12 @@ class PNEncoder(nn.Module):
             hidden_dims=hidden_dims,
             output_dim=2*latent_dim,
         )
-  
+
+        self.input_dim = input_dim
+        self.emb_dim = emb_dim
+        self.h_dim = h_dim
+        self.latent_dim = latent_dim
+
     def forward(self, x, mask):
         """
         x: [batch, input_dim]
@@ -36,8 +45,8 @@ class PNEncoder(nn.Module):
             
         """
         # Enforce x to be (bs, input_dim) shape
-        x = x.view(x.size(0), -1)
-        mask = mask.view(mask.size(0), -1)
+        x = x.view(x.size(0), self.input_dim)
+        mask = mask.view(mask.size(0), self.input_dim)
 
         # Expand input x to match embedding dimensions for broadcasting
         x_exp = x.unsqueeze(-1)                 # [B, D, 1]
