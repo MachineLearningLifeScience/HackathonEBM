@@ -135,8 +135,6 @@ class EBMLatentTilting(EBM):
         # Generate samples using the sampler
         samples = self.sampler(init=init, **kwargs)
 
-        # samples = samples.reshape(samples.shape[0], -1, self.energy_net.input_dim)
-
         # Reactivate gradients for parameters for training
         for n, p in self.named_parameters():
             if not n.startswith("base_model."):  # skip base_model params
@@ -162,12 +160,15 @@ class EBMLatentTilting(EBM):
             num_samples=num_samples, init=None, return_init=return_init, **kwargs
         )
 
+
         if return_init:
             z_samples, z_init = out_prior
         else:
             z_samples = out_prior
 
         x_samples = self.base_model.decode(z_samples)
+        if self.base_model.likelihood is not None:
+            x_samples = self.base_model.likelihood.logits_to_data(x_samples)
         if return_init:
             x_init = self.base_model.decode(z_init)
             x_init = self.base_model.likelihood.logits_to_data(x_init)
