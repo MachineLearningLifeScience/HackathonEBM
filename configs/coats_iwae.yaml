@@ -1,0 +1,10 @@
+
+defaults:
+  - train: default
+  - model: vae/coats
+  - data: coats_mnar
+  - callbacks: coats_ebm_debiasing
+
+# Change model target to MIWAE
+model:
+  _target_: src.models.MIWAE

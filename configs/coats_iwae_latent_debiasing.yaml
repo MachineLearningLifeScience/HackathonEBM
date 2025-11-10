@@ -1,0 +1,7 @@
+
+defaults:
+  - train: default
+  - model: ebm_latent/coats_iwae
+  - data: coats_mcar
+  - callbacks: coats_ebm_debiasing
+

@@ -1,0 +1,33 @@
+_target_: src.models.VAE
+_recursive_: false  
+
+K: 5
+latent_dim: 16
+n_categories: 5
+
+size_output: ${mul:${prod:${data.shape}},${data.dim}}
+param_output: ${mul:${model.size_output},${model.n_categories}}
+param_shape: 
+  - ${model.size_output} # For categorical likelihood
+  - ${model.n_categories} 
+
+
+likelihood:
+  _target_: src.likelihoods.CategoricalLikelihood
+
+encoder:
+  _target_: src.layers.PNEncoder
+  input_dim: ${model.size_output}
+  emb_dim: 20
+  h_dim: 50
+  latent_dim: ${model.latent_dim}
+  hidden_dims: [100, 100, 100] # Unclear in not-Miwae
+    
+decoder:
+  _target_: src.layers.MLP
+  input_dim: ${model.latent_dim}
+  output_dim: ${model.param_output}
+  spectral_norm: False
+  hidden_dims: [100, 100, 100]
+  norm: null
+

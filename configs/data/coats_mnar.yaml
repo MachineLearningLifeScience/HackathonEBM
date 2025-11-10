@@ -1,0 +1,30 @@
+# General info
+shape: [300,]
+dim: 1
+root: "./data/COATS/"
+
+# Shared dataset class params
+dataset:
+  _target_: src.data.COATS
+  root: "${data.root}"
+  download: False
+  prop_debias: 0.6
+  prop_val : 0.2
+  prop_test : 0.2
+
+    
+# Specific which params
+train_dataset:
+  which: "mnar_train"
+val_dataset:
+  which: "mnar_val"
+test_dataset:
+  which: "test"
+
+# Shared dataloader params
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: ${train.batch_size}
+  num_workers: 4
+  pin_memory: True
+  persistent_workers: True
