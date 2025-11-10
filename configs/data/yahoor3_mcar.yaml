@@ -1,0 +1,30 @@
+# General info
+shape: [1000,]
+dim: 1
+root: "./data/yahoor3/"
+
+# Shared dataset class params
+dataset:
+  _target_: src.data.YahooR3
+  root: "${data.root}"
+  download: False
+  prop_debias: 0.6
+  prop_val : 0.2
+  prop_test : 0.2
+
+    
+# Specific split params
+train_dataset:
+  which: "mcar_train"
+val_dataset:
+  which: "mcar_val"
+test_dataset:
+  which: "test"
+
+# Shared dataloader params
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: ${train.batch_size}
+  num_workers: 4
+  pin_memory: True
+  persistent_workers: True

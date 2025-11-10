@@ -1,0 +1,11 @@
+
+defaults:
+  - train: default
+  - model: vae/yahoo
+  - data: yahoor3_mnar
+  - callbacks: yahoo_vae
+
+
+# Change model target to MIWAE
+model:
+  _target_: src.models.MIWAE

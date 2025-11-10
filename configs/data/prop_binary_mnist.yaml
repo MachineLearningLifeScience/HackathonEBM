@@ -1,7 +1,7 @@
 # General info
 shape: [28, 28]
 dim: 1
-root: "mnist/"
+root: "./mnist"
 
 # Shared dataset class params
 dataset:
@@ -15,10 +15,10 @@ dataset:
       - _target_: src.data.Binarize
   proportions: {
             0: 0.12,
-            1: 0.33,
+            1: 0.25,
             2: 0.28,
             3: 0.20,
-            4: 0.07,
+            4: 0.18,
             5: 0.0,
             6: 0.0,
             7: 0.0,

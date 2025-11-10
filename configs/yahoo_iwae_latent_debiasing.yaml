@@ -1,0 +1,7 @@
+
+defaults:
+  - train: default
+  - model: ebm_latent/yahoo_iwae
+  - data: yahoor3_mcar
+  - callbacks: yahoo_ebm_debiasing
+
