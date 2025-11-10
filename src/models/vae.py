@@ -172,9 +172,8 @@ class VAE(BaseModel):
         """
         device = device or next(self.parameters()).device
         z = torch.randn(num_samples, self.latent_dim, device=device)
-        x_samples = self.decoder(z)
+        x_samples = self.decode(z)
         x_samples = self.likelihood.logits_to_data(x_samples, *args, **kwargs)
-
         return x_samples
 
     def impute(self, x, mask, K=None):
