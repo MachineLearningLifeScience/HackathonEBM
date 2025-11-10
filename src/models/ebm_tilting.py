@@ -69,7 +69,7 @@ class EBMTilting(EBM):
         energy_loss =  energy_real - energy_sampled
 
         # Reg loss
-        reg_loss = self.regularization_term(x_real, x_sampled, energy_real, energy_sampled)
+        reg_loss, reg_losses = self.regularization_term(x_real, x_sampled, energy_real, energy_sampled)
 
         loss = reg_loss + energy_loss
 
@@ -80,6 +80,7 @@ class EBMTilting(EBM):
                 'energy_loss': energy_loss.mean(),
                 'reg_loss': reg_loss.mean(),
                 }
+            loss_dict.update(reg_losses)
             return loss, loss_dict
         else:        
             return loss

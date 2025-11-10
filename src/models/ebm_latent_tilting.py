@@ -79,10 +79,9 @@ class EBMLatentTilting(EBM):
         energy_loss = energy_real - energy_sampled
 
         # Reg loss
-        reg_loss = self.regularization_term(
+        reg_loss, dic_reg = self.regularization_term(
             z_real, z_sampled, energy_real, energy_sampled
         )
-
         loss = reg_loss + energy_loss
 
         if return_losses:
@@ -90,8 +89,8 @@ class EBMLatentTilting(EBM):
                 "energy_real": energy_real.mean(),
                 "energy_sampled": energy_sampled.mean(),
                 "energy_loss": energy_loss.mean(),
-                "reg_loss": reg_loss.mean(),
             }
+            loss_dict.update(dic_reg)
             return loss, loss_dict
         else:
             return loss
