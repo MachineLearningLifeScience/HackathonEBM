@@ -37,14 +37,14 @@ class EBMLatentTilting(EBM):
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
 
-    def forward(self, x, *args, return_losses=False, **kwargs):
+    def forward(self, x, mask, *args, return_losses=False, **kwargs):
         """Forward pass through the model.
         Args:
             x (torch.Tensor): Input tensor.
             return_losses (bool, optional): Whether to return losses. Defaults to False.
         """
 
-        z_true = self.base_model.encode(x)[0]
+        z_true = self.base_model.encode(x=x, mask=mask)[0]
         z_prior = self.base_model.sample_prior(num_samples=z_true.shape[0])
         z_sampled = self.sample_prior(num_samples=x.shape[0], init=z_prior)
 
