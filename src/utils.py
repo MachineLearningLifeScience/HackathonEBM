@@ -12,9 +12,11 @@ from omegaconf import OmegaConf
 
 # This allows to reverse a list in the config
 OmegaConf.register_new_resolver("reverse", lambda x: list(reversed(x)))
+OmegaConf.register_new_resolver("prod", lambda x: int(np.prod(x)))
 OmegaConf.register_new_resolver("length", lambda x: len(x))
 OmegaConf.register_new_resolver("mul", lambda x, y: x * y)
 OmegaConf.register_new_resolver("index", lambda lst, i: lst[i])
+OmegaConf.register_new_resolver("concat_list", lambda x, y: [x, y])
 
 
 def reparam(mu, logvar, n_samples=1, unsqueeze=False):

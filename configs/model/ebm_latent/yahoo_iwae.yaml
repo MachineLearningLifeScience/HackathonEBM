@@ -1,0 +1,26 @@
+_target_: src.models.EBMLatentTilting
+_recursive_: false  
+
+wgan_gp_lambda: 1.0
+l2_energy_lambda: 1.0
+l2_params_lambda: 0.0
+
+
+base_model: "/scratch/hhjs/hackathon_ebm_results/logs/EBM_Hackathon/yahoo_iwae_to_tilt/checkpoints/best.ckpt"
+
+energy_net:
+  _target_: src.layers.MLP
+  input_dim: 30
+  hidden_dims: [64, 64]
+  output_dim: 1
+  spectral_norm: False
+  activation: "swish"
+
+sampler:
+  _target_: src.samplers.SGLD
+  input_dim: 30
+  input_shape: []
+  sample_size: ${train.batch_size}
+  steps: 60
+  step_size: 0.2
+  noise_std: 0.005

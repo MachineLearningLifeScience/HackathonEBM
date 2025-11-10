@@ -26,7 +26,13 @@ class PNPEncoder(nn.Module):
             hidden_dims=hidden_dims,
             output_dim=2*latent_dim,
         )
-  
+
+        self.input_dim = input_dim
+        self.emb_dim = emb_dim
+        self.h_dim = h_dim
+        self.latent_dim = latent_dim
+
+
     def forward(self, x, mask):
         """
         x: [batch, input_dim]
@@ -35,8 +41,8 @@ class PNPEncoder(nn.Module):
             
         """
         # Enforce x to be (bs, input_dim) shape
-        x = x.view(x.size(0), -1)
-        mask = mask.view(mask.size(0), -1)
+        x = x.view(x.size(0), self.input_dim)
+        mask = mask.view(mask.size(0), self.input_dim)
 
         # Expand input x to match embedding dimensions for broadcasting
         x_exp = x.unsqueeze(-1)                 # [B, D, 1]

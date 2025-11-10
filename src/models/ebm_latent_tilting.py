@@ -37,14 +37,14 @@ class EBMLatentTilting(EBM):
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
 
-    def forward(self, x, *args, return_losses=False, **kwargs):
+    def forward(self, x, mask, *args, return_losses=False, **kwargs):
         """Forward pass through the model.
         Args:
             x (torch.Tensor): Input tensor.
             return_losses (bool, optional): Whether to return losses. Defaults to False.
         """
 
-        z_true = self.base_model.encode(x)[0]
+        z_true = self.base_model.encode(x=x, mask=mask)[0]
         z_prior = self.base_model.sample_prior(num_samples=z_true.shape[0])
         z_sampled = self.sample_prior(num_samples=x.shape[0], init=z_prior)
 
@@ -79,10 +79,9 @@ class EBMLatentTilting(EBM):
         energy_loss = energy_real - energy_sampled
 
         # Reg loss
-        reg_loss = self.regularization_term(
+        reg_loss, dic_reg = self.regularization_term(
             z_real, z_sampled, energy_real, energy_sampled
         )
-
         loss = reg_loss + energy_loss
 
         if return_losses:
@@ -90,8 +89,8 @@ class EBMLatentTilting(EBM):
                 "energy_real": energy_real.mean(),
                 "energy_sampled": energy_sampled.mean(),
                 "energy_loss": energy_loss.mean(),
-                "reg_loss": reg_loss.mean(),
             }
+            loss_dict.update(dic_reg)
             return loss, loss_dict
         else:
             return loss
@@ -136,8 +135,6 @@ class EBMLatentTilting(EBM):
         # Generate samples using the sampler
         samples = self.sampler(init=init, **kwargs)
 
-        # samples = samples.reshape(samples.shape[0], -1, self.energy_net.input_dim)
-
         # Reactivate gradients for parameters for training
         for n, p in self.named_parameters():
             if not n.startswith("base_model."):  # skip base_model params
@@ -163,12 +160,15 @@ class EBMLatentTilting(EBM):
             num_samples=num_samples, init=None, return_init=return_init, **kwargs
         )
 
+
         if return_init:
             z_samples, z_init = out_prior
         else:
             z_samples = out_prior
 
         x_samples = self.base_model.decode(z_samples)
+        if self.base_model.likelihood is not None:
+            x_samples = self.base_model.likelihood.logits_to_data(x_samples)
         if return_init:
             x_init = self.base_model.decode(z_init)
             x_init = self.base_model.likelihood.logits_to_data(x_init)

@@ -89,6 +89,19 @@ class BaseModel(pl.LightningModule):
         loss_dict = {f'val/{k}': v for k, v in loss_dict.items()}
         self.log_dict(loss_dict, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
         return loss.mean()
+
+    def test_step(self, batch, batch_idx):
+        if isinstance(batch, (list, tuple)):
+            x = batch[0]
+            mask = batch[1] if len(batch) == 2 else None
+        else:
+            x = batch
+            mask = None
+        loss, loss_dict = self.forward(x, mask, return_losses=True)
+        self.log('test/loss', loss.mean(), on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        loss_dict = {f'test/{k}': v for k, v in loss_dict.items()}
+        self.log_dict(loss_dict, on_step=False, on_epoch=True, prog_bar=False, sync_dist=True)
+        return loss.mean()
     
     def configure_optimizers(self):
         optimizer = instantiate(self.hparams.train.optimizer, params=self.parameters())
