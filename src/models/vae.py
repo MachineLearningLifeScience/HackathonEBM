@@ -56,19 +56,20 @@ class VAE(BaseModel):
         return mean, logvar
 
     def decode(self, z):
-        # z: [batch, K, latent_dim]
+        if hasattr(self.hparams.model, 'param_shape'):
+            reconstruction_size = self.hparams.model.param_shape # In case of categorical likelihood, the output shape of the parameter corresponds to one hot
+        else:
+            reconstruction_size = self.hparams.data.shape # In this case, the output shape is the same as the data shape
         if len(z.size()) == 2:
             batch, latent_dim = z.size()
-            input_size = self.hparams.data.shape
             z_flat = z
             x_recon = self.decoder(z_flat)
-            return x_recon.view(batch, -1, *input_size)
+            return x_recon.view(batch, 1, *reconstruction_size) # [batch, 1, input_dim]
         else:
             batch, K, latent_dim = z.size()
-            input_size = self.hparams.data.shape
-            z_flat = z.view(-1, latent_dim)
+            z_flat = z.view(batch*K, latent_dim)
             x_recon = self.decoder(z_flat)
-        return x_recon.view(batch, K, -1, *input_size)
+            return x_recon.view(batch, K, *reconstruction_size)
 
     def forward(self, x, mask, return_losses=False):
         return self.elbo(x, mask, return_losses=return_losses)
