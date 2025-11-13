@@ -1,0 +1,24 @@
+_target_: src.models.EBM
+_recursive_: false  
+
+buffer_size: 128
+wgan_gp_lambda: 0.0
+l2_energy_lambda: 1e-2
+l2_params_lambda: 0.
+
+
+energy_net:
+  _target_: src.layers.MLP
+  input_dim: 2
+  hidden_dims: [32,32,32]
+  output_dim: 1
+  activation: "swish"
+  
+sampler:
+  _target_: src.samplers.SGLD
+  input_dim: ${data.dim}
+  input_shape: ${data.shape}  
+  sample_size: ${train.batch_size}
+  steps: 30
+  step_size: 1e-2   
+  noise_std: 1.0   
