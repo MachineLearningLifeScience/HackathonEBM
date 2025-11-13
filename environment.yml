@@ -16,3 +16,5 @@ dependencies:
       - einops
       - matplotlib
       - pandas
+      - kaggle
+      - scikit-learn
