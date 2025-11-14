@@ -3,24 +3,29 @@ _recursive_: false
 
 K: 1
 latent_dim: 1
+param_dim: 2
+param_output_channel: ${mul:${data.dim},${model.param_dim}}
+param_output_dim: ${mul:${prod:${data.shape}},${model.param_dim}} # For decoder output
+
 
 likelihood:
   _target_: src.likelihoods.GaussianLikelihood
   min_logvar: -3.
   learn_var: True
+  param_dim: ${model.param_dim}
 
 encoder:
   _target_: src.layers.MLP
   input_dim: 2
   hidden_dims: [32,32,32]
-  output_dim: 2
+  output_dim: 2 # Two times latent dim for mean and logvar
   activation: "relu"
     
 decoder:
   _target_: src.layers.MLP
   input_dim: 1
   hidden_dims: [32,32,32]
-  output_dim: 4
+  output_dim: ${model.param_output_dim}
   activation: "relu"
 
 

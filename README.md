@@ -98,4 +98,5 @@ TODO
 ## TODOs :
 - Add a version of the EBM that operates in the latent space of a pretrained VAE (instead of pixel space)
 - Add other experiments for simpler datasets (UCI?)
+- Try MSE loss with self normalized importance sampling for EBM training
 

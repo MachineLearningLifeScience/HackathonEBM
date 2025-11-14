@@ -153,8 +153,8 @@ class EBMLatentTilting(EBM):
             num_samples: Number of samples to generate
             return_init: Whether to return the initial latent samples before MCMC
         Returns:
-            samples: Generated samples from the energy model
-            init: Initial samples from the base model (if return_init is True)
+            samples: Generated samples from the energy model [num_samples, channel_dim, *input_shape]
+            init: Initial samples from the base model (if return_init is True) [num_samples, channel_dim, *input_shape]
         """
         out_prior = self.sample_prior(
             num_samples=num_samples, init=None, return_init=return_init, **kwargs
@@ -166,12 +166,11 @@ class EBMLatentTilting(EBM):
         else:
             z_samples = out_prior
 
-        x_samples = self.base_model.decode(z_samples)
-        if self.base_model.likelihood is not None:
-            x_samples = self.base_model.likelihood.logits_to_data(x_samples)
+        logits_samples = self.base_model.decode(z_samples) # Decode explicitely add K
+        x_samples = self.base_model.likelihood.logits_to_data(logits_samples).flatten(0,1)
         if return_init:
-            x_init = self.base_model.decode(z_init)
-            x_init = self.base_model.likelihood.logits_to_data(x_init)
+            logits_init = self.base_model.decode(z_init)
+            x_init = self.base_model.likelihood.logits_to_data(logits_init).flatten(0,1)
             return x_samples, x_init
         else:
             return x_samples

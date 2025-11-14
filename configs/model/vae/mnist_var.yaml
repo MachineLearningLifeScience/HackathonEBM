@@ -3,11 +3,14 @@ _recursive_: false
 
 K: 5
 latent_dim: 32
-param_dim: 1
+param_dim: 2
 param_output_channel: ${mul:${data.dim},${model.param_dim}}
 
+
 likelihood:
-  _target_: src.likelihoods.BernoulliLikelihood
+  _target_: src.likelihoods.GaussianLikelihood
+  min_logvar: -2.3
+  learn_var: True
   param_dim: ${model.param_dim}
 
 encoder:

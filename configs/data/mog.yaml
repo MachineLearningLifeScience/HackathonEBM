@@ -1,6 +1,6 @@
 # General info
-shape: [1, 1]
-dim: 2
+shape: [2,]
+dim: 1
 root: "mog/"
 
 # Shared dataset class params

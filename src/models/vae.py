@@ -5,6 +5,7 @@ from hydra.utils import instantiate
 
 from src.models.base import BaseModel
 from src.utils import reparam
+import numpy as np
 
 
 class VAE(BaseModel):
@@ -56,19 +57,39 @@ class VAE(BaseModel):
         return mean, logvar
 
     def decode(self, z):
-        # z: [batch, K, latent_dim] or [batch, latent_dim]
+        """
+        Decode latent variables z to reconstruct input x.
+        Handles both single sample and multiple samples (K) cases.
+        Automatically handles the shape of the output based on likelihood parameters.
+        E.G., for categorical likelihood, the output shape of the parameter corresponds to one hot
+        So categorical with 5 classes and input dim 3 will have output shape [batch, K, 3, ..., 5]
+        
+        Args:
+            z: Latent variables, shape [batch, latent_dim] or [batch, K, latent_dim]
+        Returns:
+            x_recon: Reconstructed inputs, shape [batch, 1, input_dim/channel*(param_dim), *input_shape,]
+            or [batch, K, input_dim/channel*(param_dim), *input_shape,]. 
+        """
+
+        # Check reconstruction size
+        if hasattr(self.hparams.model, 'param_output_channel'):
+            param_output_channel = self.hparams.model.param_output_channel # In case of categorical likelihood, the output shape of the parameter corresponds to one hot
+            reconstruction_size = [self.hparams.data.dim*param_output_channel] + list(self.hparams.data.shape)
+        else:
+            reconstruction_size = [self.hparams.data.dim] + list(self.hparams.data.shape)
+        
         if len(z.size()) == 2:
             batch, latent_dim = z.size()
             input_size = self.hparams.data.shape
             z_flat = z
-            x_recon = self.decoder(z_flat)
-            return x_recon.view(batch, -1, *input_size)
+            logits_recon = self.decoder(z_flat)
+            return logits_recon.view(batch, 1, *reconstruction_size)
         else:
             batch, K, latent_dim = z.size()
-            input_size = self.hparams.data.shape
-            z_flat = z.view(-1, latent_dim)
-            x_recon = self.decoder(z_flat)
-        return x_recon.view(batch, K, -1, *input_size)
+            z_flat = z.view(batch*K, latent_dim)
+            logits_recon = self.decoder(z_flat)
+            
+            return logits_recon.view(batch, K, *reconstruction_size)
 
     def forward(self, x, mask, return_losses=False):
         return self.elbo(x, mask, return_losses=return_losses)
@@ -109,16 +130,15 @@ class VAE(BaseModel):
             mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
             
         mean, logvar = self.encode(x*mask, mask)
-
         z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
 
         # Decode
-        x_recon = self.decode(z)  # [batch, K, input_dim]
+        logits_recon = self.decode(z)  # [batch, K, channel_dim*param_dim, *input_shape]
 
         # Compute log p(x_obs|z)
         # Only observed values contribute to likelihood
         log_px = self.likelihood.log_prob_mask(
-            x, x_recon, mask=mask, mode="sum"
+            x, logits_recon, mask=mask, mode="sum"
         )  # [batch, K]
 
         # Compute KL(q(z|x_obs) || p(z))
@@ -146,8 +166,12 @@ class VAE(BaseModel):
 
     def reconstruct(self, x, mask=None, K=None, *args, **kwargs):
         """
-        x: [batch, input_dim]
-        mask: [batch, input_dim] binary mask (1=observed, 0=missing)
+        Args:
+            x: [batch, input_dim]
+            mask: [batch, input_dim] binary mask (1=observed, 0=missing)
+        
+        Returns:
+            x_recon: Reconstructed input [batch, input_dim]
         """
         if K is None:
             K = self.K
@@ -159,21 +183,20 @@ class VAE(BaseModel):
             mean, logvar = self.encode(x, mask)
             z = reparam(mean, logvar, K, unsqueeze=True)  # [batch, K, latent_dim]
             # Decode
-            x_recon = self.decode(z)  # [batch, K, input_dim]
-            x_recon = x_recon.mean(dim=1)  # Weighted sum over K
-            x_recon = self.likelihood.logits_to_data(x_recon)
+            logits_recon = self.decode(z)  # [batch, K, input_dim]
+            logits_recon = logits_recon.mean(dim=1)  # Weighted sum over K
+            x_recon = self.likelihood.logits_to_data(logits_recon)
         return x_recon
 
     def sample(self, num_samples, device=None, *args, **kwargs):
         """
         Generate samples from the model's prior.
-        Returns: [num_samples, *input_dim]
+        Returns: [num_samples, channnel_dim, *input_shape]
         """
         device = device or next(self.parameters()).device
         z = torch.randn(num_samples, self.latent_dim, device=device)
-        x_samples = self.decode(z)
-        x_samples = self.likelihood.logits_to_data(x_samples, *args, **kwargs)
-
+        logits_samples = self.decode(z) # [num_samples, 1, channel_dim*param_dim, *input_shape]
+        x_samples = self.likelihood.logits_to_data(logits_samples, *args, **kwargs).flatten(0,1)
         return x_samples
 
     def impute(self, x, mask, K=None):

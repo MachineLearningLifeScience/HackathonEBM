@@ -3,21 +3,18 @@ _recursive_: false
 
 K: 5
 latent_dim: 16
-n_categories: 5
-
-size_output: ${mul:${prod:${data.shape}},${data.dim}}
-param_output: ${mul:${model.size_output},${model.n_categories}}
-param_shape: 
-  - ${model.size_output} # For categorical likelihood
-  - ${model.n_categories} 
+param_dim: 5
+param_output_channel: ${mul:${data.dim},${model.param_dim}} # Dimension of the decoder output
+param_output_dim: ${mul:${prod:${data.shape}},${model.param_dim}} # For decoder output
 
 
 likelihood:
   _target_: src.likelihoods.CategoricalLikelihood
+  param_dim: ${model.param_dim}
 
 encoder:
   _target_: src.layers.PNEncoder
-  input_dim: ${model.size_output}
+  input_dim: ${mul:${prod:${data.shape}},${data.dim}}
   emb_dim: 20
   h_dim: 50
   latent_dim: ${model.latent_dim}
@@ -26,7 +23,7 @@ encoder:
 decoder:
   _target_: src.layers.MLP
   input_dim: ${model.latent_dim}
-  output_dim: ${model.param_output}
+  output_dim: ${model.param_output_dim}
   spectral_norm: False
   hidden_dims: [100, 100, 100]
   norm: null

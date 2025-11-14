@@ -37,7 +37,7 @@ class MIWAE(VAE):
         """
         if K==None:
             K = self.K
-            
+
         if mask is None:
             mask = torch.ones(x.shape[0], 1, *x.shape[2:], device=x.device)  # (bs, 1, h, w)
         
@@ -53,11 +53,11 @@ class MIWAE(VAE):
         log_pz = gaussian_log_prob(z, torch.zeros_like(z), torch.zeros_like(z)).sum(-1)  # [batch, K]
         
         # Decode
-        x_recon = self.decode(z)  # [batch, K, *input_dims]
+        logits_recon = self.decode(z)  # [batch, K, channel_dim*param_dim, *input_shape]
 
         # Compute log p(x_obs|z)
         # Only observed values contribute to likelihood
-        log_px = self.likelihood.log_prob_mask(x, x_recon, mask=mask, mode='sum')  # [batch, K]
+        log_px = self.likelihood.log_prob_mask(data=x, logits=logits_recon, mask=mask, mode='sum').reshape(x.shape[0], K)  # [batch, K]
 
         # Importance weights (unnormalized)
         log_w = log_px + log_pz - log_qz  # [batch, K]
@@ -116,6 +116,5 @@ class MIWAE(VAE):
             weights = torch.exp(log_w).view(log_w.shape[0], log_w.shape[1], *([1] * (x_recon.dim() - 2)))
             x_recon = x_recon * weights
             x_recon = x_recon.sum(dim=1)  # Weighted sum over K
-
             x_recon = self.likelihood.logits_to_data(x_recon)
         return x_recon

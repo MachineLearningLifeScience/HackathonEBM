@@ -60,13 +60,22 @@ class BaseModel(pl.LightningModule):
         """
         pass
 
-    def training_step(self, batch, batch_idx):
+    def handle_batch(self, batch):
         if isinstance(batch, (list, tuple)):
             x = batch[0]
-            mask = batch[1] if len(batch) == 2 else None
+            mask = batch[1]
         else:
             x = batch
             mask = None
+        x = x.reshape(x.shape[0], self.hparams.data.dim, *self.hparams.data.shape)
+        if mask is not None:
+            mask = mask.reshape(mask.shape[0], 1, *self.hparams.data.shape)
+        else:
+            mask = torch.ones_like(x[:, :1, ...])
+        return x, mask
+
+    def training_step(self, batch, batch_idx):
+        x, mask = self.handle_batch(batch)
         loss, loss_dict = self.forward(x, mask, return_losses=True)
         self.log('train/loss', loss.mean(), on_step=True, on_epoch=False, prog_bar=True, sync_dist=True)
         loss_dict = {f'train/{k}': v for k, v in loss_dict.items()}
@@ -74,12 +83,7 @@ class BaseModel(pl.LightningModule):
         return loss.mean()
         
     def validation_step(self, batch, batch_idx):
-        if isinstance(batch, (list, tuple)):
-            x = batch[0]
-            mask = batch[1] if len(batch) == 2 else None
-        else:
-            x = batch
-            mask = None
+        x, mask = self.handle_batch(batch)
         loss, loss_dict = self.forward(x, mask, return_losses=True)
         self.log('val/loss', loss.mean(), on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
@@ -91,12 +95,7 @@ class BaseModel(pl.LightningModule):
         return loss.mean()
 
     def test_step(self, batch, batch_idx):
-        if isinstance(batch, (list, tuple)):
-            x = batch[0]
-            mask = batch[1] if len(batch) == 2 else None
-        else:
-            x = batch
-            mask = None
+        x, mask = self.handle_batch(batch)
         loss, loss_dict = self.forward(x, mask, return_losses=True)
         self.log('test/loss', loss.mean(), on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         loss_dict = {f'test/{k}': v for k, v in loss_dict.items()}
