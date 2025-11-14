@@ -5,8 +5,9 @@ import pytorch_lightning as pl
 import torch
 from hydra.utils import instantiate
 from torch.nn import functional as F
-
+from src.utils import freeze
 from src.models.base import BaseModel
+
 
 
 class EBM(BaseModel):
@@ -14,7 +15,7 @@ class EBM(BaseModel):
         self,
         energy_net,
         sampler,
-        buffer_size=1024,
+        buffer_size=None,
         init_dist='normal',
         cfg=None,
         ckpt_path=None,
@@ -33,11 +34,11 @@ class EBM(BaseModel):
         self.sampler = instantiate(sampler, log_prob=self.u_log_prob)
         self.init_dist = init_dist
 
-        self.register_buffer(
-            "buffer",
-            self.get_init(buffer_size)
-        )
-
+        if buffer_size is not None:
+            self.register_buffer(
+                "buffer",
+                self.get_init(buffer_size)
+            )
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path)
 
@@ -48,7 +49,7 @@ class EBM(BaseModel):
             return_losses (bool, optional): Whether to return losses. Defaults to False.
         """
 
-        if self.training:
+        if self.training and hasattr(self, "buffer"):
             # Buffer sampling
             init = self.get_buffer(x.shape[0])
         else:
@@ -194,8 +195,8 @@ class EBM(BaseModel):
         # because we are only interested in the gradients of the input.
         is_training = self.training
         self.eval()
-        for p in self.parameters():
-            p.requires_grad = False
+        freeze(self)
+
 
         # Generate samples using the sampler
         samples = self.sampler(init=init, **kwargs)

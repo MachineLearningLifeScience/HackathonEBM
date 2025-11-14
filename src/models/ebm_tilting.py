@@ -20,7 +20,6 @@ class EBMTilting(EBM):
         """
         super().__init__(energy_net=energy_net, sampler=sampler, cfg=cfg, ckpt_path=ckpt_path, *args, **kwargs)
         self.base_model, _ = load_model(ckpt_path=base_model)
-        assert self.base_model.latent_dim == self.energy_net.input_dim, "Base model latent dim must match energy net input dim"
         
         # Freeze base model
         freeze(self.base_model)    
@@ -35,56 +34,16 @@ class EBMTilting(EBM):
             return_losses (bool, optional): Whether to return losses. Defaults to False.
         """ 
 
-        init = self.base_model.sample(num_samples=x.shape[0])
-
-        x_sampled = self.sample(num_samples=x.shape[0], init=init)
+        x_sampled = self.sample(num_samples=x.shape[0])
 
         # Add small noise to the input
-        small_noise = torch.randn_like(x) * 0.005
-        x.add_(small_noise).clamp_(min=-1.0, max=1.0)
+        x = x + torch.randn_like(x) * 0.005
         
         if return_losses:
             loss, loss_dict = self.loss(x, x_sampled, return_losses=return_losses)
             return loss, loss_dict
         else:
             return self.loss(x, x_sampled)
-        
-    def loss(self, x_real, x_sampled, return_losses=False):
-        """
-        Args:
-            x_real: Samples from the true data distribution
-            x_sampled: Negative samples (e.g., from a generator or Langevin dynamics)
-        Returns:
-            loss: A scalar loss value
-            loss_dict: A dictionary of individual losses (if return_losses is True)
-        """
-        if self.training:
-            x_real.requires_grad_(True)
-
-        x_all = torch.cat([x_real, x_sampled], dim=0)
-        # Compute energy for real and sampled data
-        energy_real, energy_sampled = self.energy_net(x_all)[:,0].chunk(2, dim=0)
-
-        # Energy loss
-        energy_loss =  energy_real - energy_sampled
-
-        # Reg loss
-        reg_loss, reg_losses = self.regularization_term(x_real, x_sampled, energy_real, energy_sampled)
-
-        loss = reg_loss + energy_loss
-
-        if return_losses:
-            loss_dict = {
-                'energy_real': energy_real.mean(),
-                'energy_sampled': energy_sampled.mean(),
-                'energy_loss': energy_loss.mean(),
-                'reg_loss': reg_loss.mean(),
-                }
-            loss_dict.update(reg_losses)
-            return loss, loss_dict
-        else:        
-            return loss
-
 
     def u_log_prob(self, x):
         """
@@ -101,6 +60,18 @@ class EBMTilting(EBM):
 
         return -energy + base_logp # EBM outputs energy, we return -energy for log probability
     
+    def get_init(self, num_samples):
+        """
+        Get initial samples for MCMC from the base model.
+        Args:
+            num_samples: Number of samples to generate
+        Returns:
+            init: (num_samples, *data_shape)
+        """
+        init = self.base_model.sample_prior(num_samples)
+        return init
+
+    
     def sample(self, num_samples=None, init=None, return_init=False, **kwargs):
         """
         Sample from the energy model using the provided sampler.
@@ -109,14 +80,15 @@ class EBMTilting(EBM):
         Returns:
             samples: Generated samples from the energy model
         """
-        init = self.base_model.sample(num_samples=num_samples)
+
+        if init is None:
+            init = self.base_model.sample(num_samples=num_samples)
         
         # Before MCMC: set model parameters to "required_grad=False"
         # because we are only interested in the gradients of the input. 
         is_training = self.training
         self.eval()
-        for p in self.parameters():
-            p.requires_grad = False
+        freeze(self)
 
         # Generate samples using the sampler
         samples = self.sampler(init=init, **kwargs)
@@ -131,6 +103,3 @@ class EBMTilting(EBM):
             return samples, init
         else:
             return samples            
-
-
-    
