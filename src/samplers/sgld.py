@@ -50,7 +50,6 @@ class SGLD(torch.nn.Module):
 
         had_gradients_enabled = torch.is_grad_enabled()
         torch.set_grad_enabled(True)
-
         x = init.clone().detach().requires_grad_(True)
         if self.clamp:                        
             with torch.no_grad():
@@ -63,6 +62,7 @@ class SGLD(torch.nn.Module):
             # 1. Compute ∇ log p(x)
             log_prob = self.log_prob(x)
             log_prob.sum().backward()
+            # TODO: For some reason, calling .backward() sometimes does not set x.grad?
 
             with torch.no_grad():
                 if self.clip_grads:

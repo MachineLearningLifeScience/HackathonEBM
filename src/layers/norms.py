@@ -7,4 +7,5 @@ norms = {
     "group_norm": nn.GroupNorm,
     "spectral_norm": nn.utils.spectral_norm,
     "none": nn.Identity,
+    None: nn.Identity,
 }

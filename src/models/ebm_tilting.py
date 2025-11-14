@@ -55,9 +55,7 @@ class EBMTilting(EBM):
             log_prob: Unnormalized log probability
         """
         energy = self.energy_net(x)[:,0]
-
         base_logp = self.base_model.log_prob(x)
-
         return -energy + base_logp # EBM outputs energy, we return -energy for log probability
     
     def get_init(self, num_samples):
@@ -69,6 +67,7 @@ class EBMTilting(EBM):
             init: (num_samples, *data_shape)
         """
         init = self.base_model.sample_prior(num_samples)
+        init = init.reshape(init.shape[0], self.hparams.data.dim, *self.hparams.data.shape)
         return init
 
     
@@ -83,7 +82,7 @@ class EBMTilting(EBM):
 
         if init is None:
             init = self.base_model.sample(num_samples=num_samples)
-        
+        init = init.reshape(init.shape[0], self.hparams.data.dim, *self.hparams.data.shape)
         # Before MCMC: set model parameters to "required_grad=False"
         # because we are only interested in the gradients of the input. 
         is_training = self.training

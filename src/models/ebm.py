@@ -185,6 +185,7 @@ class EBM(BaseModel):
             num_samples: Number of samples to generate
         Returns:
             samples: Generated samples from the energy model
+            Shape: [num_samples, channel_dim, *input_shape]
         """
         if num_samples is None:
             num_samples = self.hparams.train.batch_size
