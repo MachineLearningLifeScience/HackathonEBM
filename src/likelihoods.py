@@ -46,42 +46,30 @@ class Likelihood(nn.Module):
     def log_prob_mask(self, data, logits, mask=None, mode="mean", params=False, reduce=True, *args, **kwargs) -> torch.Tensor:
         """
         Computes the log probability of a given masked data under parameters theta
-        args:
-            data: [batch, dim, *[datashape],]
-            logits: [batch, mc, dim, *[datashape], potential_additional_param_shape] -> depending on likelihood. E.g., for Gaussian, last dim is 2 (mean and logvar)
-            mask: [batch, mc, dim, *[datashape],] binary mask (1=observed, 0=missing)
-            mode: "mean" or "sum" - how to reduce the log prob over observed points
-            params: whether the logits are already converted to parameters
         """
         mc_mode = False
 
         if mask is None:
-            mask = torch.ones_like(data[:, :1, ...])  # (bs, 1, *input_dims), assume all observed, enforce channel dim = 1
-
+            mask = torch.ones_like(data)[:, :1, ...]  # (bs, 1, h, w)   
         
-        
-        if logits.shape[1]> 1: # Change the conditioning on the mc sampling
+        if len(logits.shape) == 5:
             mc_mode = True
             # MC samples
-            bs, mc_samples, dim_params = logits.shape[:3]
-            data_dims = data.shape[2:]
-
-            logits = logits.flatten(0,1)
-            
+            bs, mc_samples, dim_params, h, w = logits.shape
+            feats = data.shape[1]
+            logits = logits.reshape(bs*mc_samples, dim_params, h, w)
             # repeat data and mask
-            data = data.unsqueeze(1).expand(bs, mc_samples, *data.shape[1:])  # (bs, feats, h, w) -> (bs, mc_samples, feats, h, w)
-            mask = mask.unsqueeze(1).expand(bs, mc_samples, *mask.shape[1:])  # (bs, feats, h, w) -> (bs, mc_samples, feats, h, w)
+            data = data.unsqueeze(1).repeat(1, mc_samples, 1, 1, 1)  # (bs, feats, h, w) -> (bs, mc_samples, feats, h, w)
+            mask = mask.unsqueeze(1).repeat(1, mc_samples, 1, 1, 1)  # (bs, feats, h, w) -> (bs, mc_samples, feats, h, w)
 
-            data = data.flatten(0,1)
-            mask = mask.flatten(0,1)
+            data = data.reshape(bs*mc_samples, feats, h, w)
+            mask = mask.reshape(bs*mc_samples, -1, h, w)
 
-
-        log_prob = self.log_prob(data, logits, params=params, *args, **kwargs) 
-        log_prob = log_prob * mask  # Apply mask (assume channel dim = 1)
-
+        log_prob = self.log_prob(data, logits, params=params, *args, **kwargs) * mask[..., 0, :,:] # mask is (bs, ..., feats, h, w)
+        
         if reduce:
             # Sum over elements and features
-            log_prob = log_prob.flatten(1).sum(-1)   # sum across the data dimensions # TODO: Is there a channel specific handling ?
+            log_prob = log_prob.sum((-1, -2))   # sum across, h and w
 
             # Sum over the activated points
             if mode == "mean":
@@ -104,6 +92,10 @@ class BernoulliLikelihood(Likelihood):
         super(BernoulliLikelihood, self).__init__(type='bernoulli')
 
     def log_prob(self, data, logits, params=False, **kwargs):
+
+        # If data is (-1, 1), scale to (0,1)
+        if data.min() < 0:
+            data = (data + 1) / 2.0
 
         # Data have to be in {0,1} (binary)
         if params:
@@ -174,7 +166,7 @@ class GaussianLikelihood(Likelihood):
 
     def logits_to_params(self, logits, temperature=1., *args, **kwargs):
         if self.learn_var:
-            mean, logvar = logits.chunk(2, dim=1)
+            mean, logvar = logits.chunk(2, dim=-3)      # [bs, mc, dim, h, w]
             # Add minimum variance
             logvar = torch.clamp(logvar, min=self.min_logvar)
         else:

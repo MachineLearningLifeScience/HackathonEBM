@@ -56,20 +56,19 @@ class VAE(BaseModel):
         return mean, logvar
 
     def decode(self, z):
-        if hasattr(self.hparams.model, 'param_shape'):
-            reconstruction_size = self.hparams.model.param_shape # In case of categorical likelihood, the output shape of the parameter corresponds to one hot
-        else:
-            reconstruction_size = self.hparams.data.shape # In this case, the output shape is the same as the data shape
+        # z: [batch, K, latent_dim] or [batch, latent_dim]
         if len(z.size()) == 2:
             batch, latent_dim = z.size()
+            input_size = self.hparams.data.shape
             z_flat = z
             x_recon = self.decoder(z_flat)
-            return x_recon.view(batch, 1, *reconstruction_size) # [batch, 1, input_dim]
+            return x_recon.view(batch, -1, *input_size)
         else:
             batch, K, latent_dim = z.size()
-            z_flat = z.view(batch*K, latent_dim)
+            input_size = self.hparams.data.shape
+            z_flat = z.view(-1, latent_dim)
             x_recon = self.decoder(z_flat)
-            return x_recon.view(batch, K, *reconstruction_size)
+        return x_recon.view(batch, K, -1, *input_size)
 
     def forward(self, x, mask, return_losses=False):
         return self.elbo(x, mask, return_losses=return_losses)
@@ -174,6 +173,7 @@ class VAE(BaseModel):
         z = torch.randn(num_samples, self.latent_dim, device=device)
         x_samples = self.decode(z)
         x_samples = self.likelihood.logits_to_data(x_samples, *args, **kwargs)
+
         return x_samples
 
     def impute(self, x, mask, K=None):
