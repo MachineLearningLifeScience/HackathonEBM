@@ -1,0 +1,19 @@
+# Trains an VAE model (fully observed binarized mnist)
+
+defaults:
+  - train: default
+  - model: vae/mog
+  - data: mog
+
+# Create the biased MoG by changing the mixture weights (original [0.3, 0.4, 0.3])
+data:
+  dataset:
+    weights: 
+      - 0.8
+      - 0.1
+      - 0.1
+
+train:
+  epochs: 2000
+  lr: 1e-3
+  accelerator: cpu
