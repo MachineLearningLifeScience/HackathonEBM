@@ -11,7 +11,7 @@ class SGLD(torch.nn.Module):
                  step_size, 
                  log_prob,
                  noise_std=1.0,
-                 clip_grads=False,
+                 clip_grads=None,
                  clamp=False
                  ):
         """
@@ -65,8 +65,8 @@ class SGLD(torch.nn.Module):
             # TODO: For some reason, calling .backward() sometimes does not set x.grad?
 
             with torch.no_grad():
-                if self.clip_grads:
-                    x.grad.clamp_(-0.03, 0.03)
+                if self.clip_grads is not None:
+                    x.grad.clamp_(-self.clip_grads, self.clip_grads)
                     
                 # 2. Langevin drift
                 x.add_(0.5 * step_size * x.grad)
