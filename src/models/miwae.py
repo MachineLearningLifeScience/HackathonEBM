@@ -66,13 +66,12 @@ class MIWAE(VAE):
         log_K = torch.log(torch.as_tensor(K, device=x.device, dtype=x.dtype))
         elbo = torch.logsumexp(log_w, dim=1) - log_K
 
-        loss = -elbo
         if return_losses:
             loss_dict = {
                 'elbo': elbo.mean(),
             }
-            return loss, loss_dict
-        return loss
+            return elbo, loss_dict
+        return elbo
     
     def reconstruct(self, x, mask=None, K=None, *args, **kwargs):
         """ Reconstruct the input from the latent space.

@@ -92,7 +92,11 @@ class VAE(BaseModel):
             return logits_recon.view(batch, K, *reconstruction_size)
 
     def forward(self, x, mask, return_losses=False):
-        return self.elbo(x, mask, return_losses=return_losses)
+        if return_losses:
+            elbo, losses = self.elbo(x, mask, return_losses=True)
+            return -elbo, losses
+        else: 
+            return -self.elbo(x, mask)
 
     def sample_prior(self, num_samples, device=None):
         """
@@ -150,16 +154,15 @@ class VAE(BaseModel):
 
         # ELBO
         elbo = log_px - kl  # [batch, K]
-        loss = -elbo
         if return_losses:
             loss_dict = {
                 "log_px": log_px.mean(),
                 "kl": kl.mean(),
                 "elbo": elbo.mean(),
             }
-            return loss.mean(dim=1), loss_dict
+            return elbo.mean(dim=1), loss_dict
 
-        return loss.mean(dim=1)  # Average over K samples
+        return elbo.mean(dim=1)  # Average over K samples
 
     def log_prob(self, x, mask=None, K=None):
         return self.elbo(x, mask, K)
